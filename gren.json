@@ -1,0 +1,14 @@
+{
+    "type": "package",
+    "platform": "node",
+    "name": "icidasset/shikensu-gren",
+    "summary": "",
+    "license": "BSD-3-Clause",
+    "version": "1.0.0",
+    "exposed-modules": [],
+    "gren-version": "0.2.0 <= v < 0.3.0",
+    "dependencies": {
+        "gren-lang/core": "3.0.0 <= v < 4.0.0",
+        "gren-lang/node": "1.0.0 <= v < 2.0.0"
+    }
+}

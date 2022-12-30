@@ -1,0 +1,235 @@
+module Path exposing ( Path, Directory, File, Encapsulated, Kind(..), directory, file, fromPosix, toPosix, encapsulate, combine, kind, map, unwrap )
+
+{-|
+
+
+# Paths
+
+@docs Path, Directory, File, Encapsulated, Kind
+
+
+# Creation
+
+@docs directory, file
+
+
+# POSIX
+
+@docs fromPosix, toPosix
+
+
+# Encapsulation
+
+@docs encapsulate
+
+
+# Functions
+
+@docs combine, kind, map, unwrap
+
+-}
+
+
+
+{-| Path type.
+This is used with the [phantom 👻 types](#phantom-types).
+
+    directoryPath : Path Directory
+    filePath : Path File
+    encapsulatedPath : Path Encapsulated
+
+-}
+type Path kind
+    = Path Kind (Array String)
+
+
+{-| -}
+type Kind
+    = Directory
+    | File
+
+
+
+-- PHANTOM TYPES
+
+
+{-| 👻 Directory
+-}
+type Directory
+    = Directory_
+
+
+{-| 👻 File
+-}
+type File
+    = File_
+
+
+{-| 👻 Encapsulated
+-}
+type Encapsulated
+    = Encapsulated_
+
+
+
+-- CREATION
+
+
+{-| Create a directory path.
+    directory [ "Audio", "Playlists" ]
+-}
+directory : Array String -> Path Directory
+directory =
+    Path Directory
+
+
+{-| Create a file path.
+    file [ "Document", "invoice.pdf" ]
+-}
+file : Array String -> Path File
+file =
+    Path File
+
+
+
+-- POSIX
+
+
+{-| Convert a POSIX formatted string to a path.
+This will return a `Encapsulated` path. To get a path of the type `Path Directory` or `Path File`, use the functions in the `Webnative.Path.Encapsulated` module.
+
+    >>> import Webnative.Path.Encapsulated
+    >>> "foo/bar/"
+    ..>   |> fromPosix
+    ..>   |> Webnative.Path.Encapsulated.toDirectory
+    Just (directory [ "foo", "bar" ])
+
+    >>> "foo/bar"
+    ..>   |> fromPosix
+    ..>   |> Webnative.Path.Encapsulated.toFile
+    Just (file [ "foo", "bar" ])
+
+-}
+fromPosix : String -> Path Encapsulated
+fromPosix string =
+    string
+        |> (\s ->
+                if String.startsWith "/" s then
+                    String.dropLeft 1 s
+                else if String.startsWith "./" s then
+                    String.dropLeft 2 s
+                else
+                    s
+            )
+        |> (\s ->
+                if String.endsWith "/" s then
+                    Path
+                        Directory
+                        (String.split "/"
+                            <| String.dropRight 1 s
+                        )
+                else
+                    Path File (String.split "/" s)
+            )
+
+
+{-| Convert a path to the POSIX format.
+
+    >>> toPosix { absolute = True } (directory [ "foo", "bar"])
+    "/foo/bar/"
+    >>> toPosix { absolute = False } (file [ "foo", "bar"])
+    "foo/bar"
+
+-}
+toPosix :
+    { absolute : Bool
+    }
+    -> Path kind
+    -> String
+toPosix { absolute } (Path k parts) =
+    let
+        joined =
+            String.join "/" parts
+
+        prefix =
+            if absolute then
+                "/"
+            else
+                ""
+    in
+    case k of
+        Directory ->
+            if Array.isEmpty parts then
+                if absolute then
+                    "/"
+                else
+                    "./"
+            else
+                prefix ++ joined ++ "/"
+
+        File ->
+            prefix ++ joined
+
+
+
+-- ENCAPSULATE
+
+
+{-| Encapsulate a path.
+-}
+encapsulate : Path kind -> Path Encapsulated
+encapsulate (Path k p) =
+    Path k p
+
+
+
+-- 🛠
+
+
+{-| Combine a directory path and another path.
+
+-}
+combine : Path Directory -> Path kind -> Path kind
+combine (Path _ a) (Path k b) =
+    Path k (a ++ b)
+
+
+{-| Get the path kind.
+
+    >>> kind (directory [])
+    Directory
+    >>> kind (file [])
+    File
+
+Even if a path is encapsulated,
+you can still check the kind of path it is.
+
+    >>> kind (encapsulate <| directory [])
+    Directory
+    >>> kind (encapsulate <| file [])
+    File
+
+-}
+kind : Path kind -> Kind
+kind (Path k _) =
+    k
+
+
+{-| Map.
+-}
+map : (Array String -> Array String) -> Path kind -> Path kind
+map fn (Path k parts) =
+    Path k (fn parts)
+
+
+{-| Get the path parts.
+
+    >>> unwrap (directory [ "foo", "bar" ])
+    [ "foo", "bar" ]
+    >>> unwrap (file [ "foo", "bar" ])
+    [ "foo", "bar" ]
+
+-}
+unwrap : Path kind -> Array String
+unwrap (Path _ parts) =
+    parts

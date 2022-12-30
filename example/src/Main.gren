@@ -1,0 +1,80 @@
+module Main exposing ( main )
+
+import FileSystem
+import Node.Program
+import Path
+import Shikensu exposing ( Focus(..) )
+import Shikensu.Contrib as Shikensu
+import Task
+
+
+type alias Model =
+    { fsPermission : FileSystem.Permission
+    }
+
+
+type Msg
+    = Bypass
+
+
+main =
+    Node.Program.define
+        { init = init
+        , update =
+            \_ model ->
+                { model = model
+                , command = Cmd.none
+                }
+        , subscriptions = \_ -> Sub.none
+        }
+
+
+init :
+    Node.Program.AppInitTask
+        { model : Model
+        , command : Cmd Msg
+        }
+init =
+    Node.Program.await
+        FileSystem.initialize
+        (\fsPermission ->
+            Node.Program.startProgram
+                { model =
+                    { fsPermission = fsPermission
+                    }
+                , command = perform fsPermission
+                }
+        )
+
+
+perform fsPermission =
+    CurrentDirectory
+        |> Shikensu.list fsPermission
+        -- |> Task.map (Shikensu.withExtension "md")
+        -- |> Task.andThen Shikensu.read
+        -- |> Task.map flow
+        -- |> Task.andThen (Shikensu.write buildDir)
+        |> Task.attempt
+                (\compendium ->
+                    let
+                        _ =
+                            Debug.log "" compendium
+                    in
+                    Bypass
+                )
+
+
+buildDir =
+    [ "build"
+    ]
+        |> Path.directory
+        |> Relative
+
+
+
+-- flow =
+--     Shikensu.permalink >> renderMarkdown
+
+
+renderMarkdown =
+    identity

@@ -1,0 +1,102 @@
+module Shikensu.Contrib exposing (..)
+
+{-|-}
+
+import Bytes exposing ( Bytes )
+import Dict exposing ( Dict )
+import Json.Encode as Json
+import Path exposing ( Path, Kind(..), Directory, File )
+import Shikensu.Contrib.Definition as Contrib.Definition
+import Shikensu.Definition exposing ( Definition, Compendium )
+
+
+
+-- TODO:
+-- https://github.com/icidasset/shikensu-haskell/blob/master/src/Shikensu/Contrib.hs
+-- 
+-- * clearMetadata
+-- * clone
+-- * copyPropsToMetadata
+-- * exclude
+-- * insertMetadata
+-- * permalink
+-- * prefixDirname
+
+
+{-| Rename.
+
+Change the `relativePath` of the definitions that match a given `relativePath`.
+For example, if you have a definition with the relativePath path `a/b/example.html`:
+
+    >>> rename
+    ..>   (Path.file [ "a", "b", "example.html" ])
+    ..>   (Path.file [ "example", "index.html" ])
+    ..>   compendium
+
+-}
+rename : Path File -> Path File -> Compendium -> Compendium
+rename oldPath newPath =
+    Array.map (Contrib.Definition.rename oldPath newPath)
+
+
+{-| Rename extension.
+
+Example:
+
+    >>> renameExtension "markdown" "html" compendium
+    ..> -- The definitions that had the extensionName "markdown"
+    ..> -- now have the extensionName "html"
+
+-}
+renameExtension : String -> String -> Compendium -> Compendium
+renameExtension old new =
+    Array.map (Contrib.Definition.renameExtension old new)
+
+
+{-| Render content.
+
+Replace the `content` property by providing a renderer.
+A renderer is a function with the signature `Definition -> Maybe Bytes`.
+You can use this to render templates, markdown, etc.
+
+-}
+renderContent : (Definition -> Maybe Bytes) -> Compendium -> Compendium
+renderContent renderer =
+    Array.map (Contrib.Definition.renderContent renderer)
+
+
+{-| Replace metadata.
+
+Replace the current metadata dictionary with another one.
+
+-}
+replaceMetadata : Dict String Json.Value -> Compendium -> Compendium
+replaceMetadata dict =
+    Array.map (\def -> { def | metadata = dict })
+
+
+{-| Set content.
+
+Set content directly.
+
+-}
+setContent : Bytes -> Compendium -> Compendium
+setContent bytes =
+    Array.map (\def -> { def | content = Just bytes })
+
+
+{-| Transform content.
+
+Alias for `renderContent`.
+
+-}
+transformContent : (Definition -> Maybe Bytes) -> Compendium -> Compendium
+transformContent =
+    renderContent
+
+
+{-| Only keep definitions with the given extension.
+-}
+withExtension : String -> Compendium -> Compendium
+withExtension extension =
+    Array.filter (\def -> def.extensionName == Just extension)

@@ -1,0 +1,129 @@
+module Shikensu.Definition exposing ( Compendium, Definition, create, fork, relativePath )
+
+{-|-}
+
+import Bytes exposing ( Bytes )
+import Dict exposing ( Dict )
+import Json.Encode as Json
+import Path exposing ( Path, Kind(..), Directory, File )
+
+
+
+-- 🧩
+
+
+{-| A piece of content.
+
+Example definition, given:
+* The working directory root path `/Users/icidasset/Projects/shikensu`
+* The full item path `/Users/icidasset/Projects/shikensu/example/test/hello.md`
+
+    { baseName = "hello"
+    , content = Nothing
+    , extensionName = Just "md"
+    , metadata = Dict.empty
+    , rootDirectoryPath = Path.directory [ "Users", "icidasset", "Projects", "shikensu" ]
+    , workingDirectoryPath : Path.directory [ "example", "test" ]
+    }
+
+-}
+type alias Definition =
+    { baseName : String
+    , content : Maybe Bytes
+    , extensionName : Maybe String
+    , metadata : Dict String Json.Value
+    , rootDirectoryPath : Path Directory
+    , workingDirectoryPath : Path Directory
+    }
+
+
+{-| A collection of `Definition`s.
+-}
+type alias Compendium =
+    Array Definition
+
+
+
+-- PATHS
+
+
+{-| The full absolute path, the working directory and the relative path.
+-}
+absolutePath : Definition -> Path File
+absolutePath def =
+    Path.combine def.rootDirectoryPath (relativePath def)
+
+
+{-| The path relative to the working directory.
+-}
+relativePath : Definition -> Path File
+relativePath def =
+    [ def.baseName ++ Maybe.withDefault "" def.extensionName
+    ]
+        |> Path.file
+        |> Path.combine def.workingDirectoryPath
+
+
+
+-- 🛠
+
+
+create : Path Directory -> Path File -> Definition
+create rootDirectoryPath relPath =
+    let
+        name =
+            relPath
+                |> Path.unwrap
+                |> Array.last
+                |> Maybe.withDefault ""
+    in
+    { baseName = baseName name
+    , content = Nothing
+    , extensionName = extensionName name
+    , metadata = Dict.empty
+    , rootDirectoryPath = rootDirectoryPath
+    , workingDirectoryPath = workingDirectoryPath relPath
+    }
+
+
+fork : Path File -> Definition -> Definition
+fork relPath def =
+    let
+        name =
+            relPath
+                |> Path.unwrap
+                |> Array.last
+                |> Maybe.withDefault ""
+    in
+    { baseName = baseName name
+    , content = def.content
+    , extensionName = extensionName name
+    , metadata = def.metadata
+    , rootDirectoryPath = def.rootDirectoryPath
+    , workingDirectoryPath = workingDirectoryPath relPath
+    }
+
+
+
+-- ㊙️
+
+
+baseName : String -> String
+baseName name =
+    name
+        |> String.split "."
+        |> Array.dropLast 1
+        |> String.join "."
+
+
+extensionName : String -> Maybe String
+extensionName name =
+    Array.last (String.split "." name)
+
+
+workingDirectoryPath : Path File -> Path Directory
+workingDirectoryPath relPath =
+    relPath
+        |> Path.unwrap
+        |> Array.dropLast 1
+        |> Path.directory

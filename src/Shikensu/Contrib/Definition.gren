@@ -1,0 +1,26 @@
+module Shikensu.Contrib.Definition exposing (..)
+
+import Bytes exposing ( Bytes )
+import Path exposing ( Path, Kind(..), Directory, File )
+import Shikensu.Definition as Definition exposing ( Definition )
+
+
+rename : Path File -> Path File -> Definition -> Definition
+rename oldPath newPath def =
+    if Definition.relativePath def == oldPath then
+        Definition.fork newPath def
+    else
+        def
+
+
+renameExtension : String -> String -> Definition -> Definition
+renameExtension oldExtname newExtname def =
+    if def.extensionName == Just oldExtname then
+        { def | extensionName = Just newExtname }
+    else
+        def
+
+
+renderContent : (Definition -> Maybe Bytes) -> Definition -> Definition
+renderContent renderer def =
+    { def | content = renderer def }

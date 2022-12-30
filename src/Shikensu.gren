@@ -1,0 +1,184 @@
+module Shikensu exposing (..)
+
+import Bytes.Encode
+import FileSystem
+import Path exposing ( Path, Kind(..), Directory, File )
+import Shikensu.Definition as Definition exposing ( Compendium )
+import Task exposing ( Task )
+
+
+
+-- 🧩
+
+
+type Focus
+    = CurrentDirectory
+    | Relative (Path Directory)
+    | Absolute (Path Directory)
+
+
+type Error
+    = PlatformAccessError FileSystem.AccessError
+    | PlatformUnknownError FileSystem.UnknownFileSystemError
+
+
+
+-- 🚀
+
+
+list : FileSystem.Permission -> Focus -> Task Error Compendium
+list permission focus =
+    focus
+        |> focusToPath
+        |> recursiveList
+                permission
+                (case focus of
+                    Absolute path ->
+                        path
+
+                    _ ->
+                        -- TODO: Root dir is not correct, haven't found a way to get the root dir.
+                        Path.directory []
+                )
+
+
+recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task Error Compendium
+recursiveList permission rootPath relativePath =
+    let
+        relativePathParts =
+            Path.unwrap relativePath
+    in
+    relativePath
+        |> Path.toPosix
+                { absolute = False
+                }
+        |> String.append ""
+        |> FileSystem.listDirectoryContent permission
+        |> Task.mapError PlatformAccessError
+        |> Task.andThen
+                (\listing ->
+                    -- Because we can't determine easily what is a directory and what is a file,
+                    -- we assume everything is a directory and recover from an access error
+                    -- when it we discover it is a file.
+                    listing
+                        |> Array.filter
+                                (\name ->
+                                    -- TODO: Add option to also list hidden files
+                                    if String.startsWith "." name then
+                                        False
+                                    else
+                                        True
+                                )
+                        |> Array.map
+                                (\name ->
+                                    let
+                                        path =
+                                            Array.pushLast name relativePathParts
+
+                                        filePath =
+                                            Path.file path
+                                    in
+                                    path
+                                        |> Path.directory
+                                        |> recursiveList permission rootPath
+                                        |> Task.onError
+                                                (\err ->
+                                                    case err of
+                                                        PlatformAccessError (FileSystem.AccessErrorUnknown errMessage) ->
+                                                            if String.contains "ENOTDIR:" errMessage then
+                                                                Task.succeed
+                                                                    [ Definition.create rootPath filePath
+                                                                    ]
+                                                            else
+                                                                Task.fail err
+
+                                                        PlatformAccessError _ ->
+                                                            Task.fail err
+
+                                                        PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->
+                                                            Task.fail err
+                                                )
+                                )
+                        |> Task.sequence
+                )
+        |> Task.map Array.flatten
+
+
+
+-- IO
+
+
+read : FileSystem.Permission -> Compendium -> Task Error Compendium
+read permission dict =
+    dict
+        |> Array.map
+                (\def ->
+                    -- TODO: Prefer the absolute path once we have that.
+                    def
+                        |> Definition.relativePath
+                        |> Path.toPosix
+                                { absolute = False
+                                }
+                        |> FileSystem.openForRead permission
+                        |> Task.mapError PlatformAccessError
+                        |> Task.andThen
+                                (\handle ->
+                                    handle
+                                        |> FileSystem.read
+                                        |> Task.mapError PlatformUnknownError
+                                        |> Task.map (\bytes -> { def | content = Just bytes })
+                                        |> Task.andThen
+                                                (\updatedDef ->
+                                                    handle
+                                                        |> FileSystem.close
+                                                        |> Task.map (\_ -> updatedDef)
+                                                        |> Task.mapError PlatformUnknownError
+                                                )
+                                )
+                )
+        |> Task.sequence
+
+
+write : FileSystem.Permission -> Focus -> Compendium -> Task Error {}
+write permission focus dict =
+    -- dict
+    --     |> Array.map
+    --             (\def ->
+    --                 -- TODO: Prefer the absolute path once we have that.
+    --                 def
+    --                     |> Definition.relativePath
+    --                     |> Path.toPosix
+    --                             { absolute = False
+    --                             }
+    --                     |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
+    --                     |> Task.mapError PlatformAccessError
+    --                     |> Task.andThen
+    --                             (\handle ->
+    --                                 def.content
+    --                                     |> Maybe.withDefault (Bytes.Encode.string "")
+    --                                     |> FileSystem.write handle
+    --                                     |> Task.mapError PlatformUnknownError
+    --                                     |> Task.map (\bytes -> { def | content = Just bytes })
+    --                             )
+    --             )
+    --     |> Task.sequence
+    -- 
+    -- NOTE: Waiting on https://github.com/gren-lang/node/issues/2
+    Task.succeed {}
+
+
+
+-- 🛠
+
+
+focusToPath : Focus -> Path Directory
+focusToPath focus =
+    case focus of
+        CurrentDirectory ->
+            Path.directory []
+
+        Relative path ->
+            path
+
+        Absolute path ->
+            path
