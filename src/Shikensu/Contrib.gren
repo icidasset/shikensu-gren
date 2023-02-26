@@ -5,9 +5,9 @@ module Shikensu.Contrib exposing (..)
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
 import Json.Encode as Json
-import Path exposing ( Path, Kind(..), Directory, File )
 import Shikensu.Contrib.Definition as Contrib.Definition
 import Shikensu.Definition exposing ( Definition, Compendium )
+import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
 

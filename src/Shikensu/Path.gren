@@ -1,4 +1,4 @@
-module Path exposing ( Path, Directory, File, Encapsulated, Kind(..), directory, file, fromPosix, toPosix, encapsulate, combine, kind, map, unwrap )
+module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), directory, length, file, fromPosix, toPosix, encapsulate, combine, kind, map, unwrap )
 
 {-|
 
@@ -213,6 +213,13 @@ you can still check the kind of path it is.
 kind : Path kind -> Kind
 kind (Path k _) =
     k
+
+
+{-| Length.
+-}
+length : Path kind -> Int
+length (Path _ parts) =
+    Array.length parts
 
 
 {-| Map.

@@ -5,7 +5,8 @@ module Shikensu.Definition exposing ( Compendium, Definition, create, fork, rela
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
 import Json.Encode as Json
-import Path exposing ( Path, Kind(..), Directory, File )
+import Shikensu.Focus as Focus exposing ( Focus )
+import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
 
@@ -15,25 +16,25 @@ import Path exposing ( Path, Kind(..), Directory, File )
 {-| A piece of content.
 
 Example definition, given:
-* The working directory root path `/Users/icidasset/Projects/shikensu`
+* The working directory root path `/Users/icidasset/Projects/shikensu/example/`
 * The full item path `/Users/icidasset/Projects/shikensu/example/test/hello.md`
 
     { baseName = "hello"
     , content = Nothing
+    , directoryPath = Path.directory [ "test" ]
     , extensionName = Just "md"
     , metadata = Dict.empty
-    , rootDirectoryPath = Path.directory [ "Users", "icidasset", "Projects", "shikensu" ]
-    , workingDirectoryPath : Path.directory [ "example", "test" ]
+    , workingDirectoryPath = Path.directory [ "example" ]
     }
 
 -}
 type alias Definition =
     { baseName : String
     , content : Maybe Bytes
+    , directoryPath : Path Directory
+    , focus : Focus
     , extensionName : Maybe String
     , metadata : Dict String Json.Value
-    , rootDirectoryPath : Path Directory
-    , workingDirectoryPath : Path Directory
     }
 
 
@@ -47,29 +48,22 @@ type alias Compendium =
 -- PATHS
 
 
-{-| The full absolute path, the working directory and the relative path.
--}
-absolutePath : Definition -> Path File
-absolutePath def =
-    Path.combine def.rootDirectoryPath (relativePath def)
-
-
 {-| The path relative to the working directory.
 -}
 relativePath : Definition -> Path File
 relativePath def =
-    [ def.baseName ++ Maybe.withDefault "" def.extensionName
+    [ def.baseName ++ Maybe.withDefault "" (Maybe.map (\e -> "." ++ e) def.extensionName)
     ]
         |> Path.file
-        |> Path.combine def.workingDirectoryPath
+        |> Path.combine def.directoryPath
 
 
 
 -- 🛠
 
 
-create : Path Directory -> Path File -> Definition
-create rootDirectoryPath relPath =
+create : Focus -> Path File -> Definition
+create focus relPath =
     let
         name =
             relPath
@@ -79,10 +73,10 @@ create rootDirectoryPath relPath =
     in
     { baseName = baseName name
     , content = Nothing
+    , directoryPath = directoryPath relPath
     , extensionName = extensionName name
+    , focus = focus
     , metadata = Dict.empty
-    , rootDirectoryPath = rootDirectoryPath
-    , workingDirectoryPath = workingDirectoryPath relPath
     }
 
 
@@ -97,10 +91,10 @@ fork relPath def =
     in
     { baseName = baseName name
     , content = def.content
+    , directoryPath = directoryPath relPath
     , extensionName = extensionName name
+    , focus = def.focus
     , metadata = def.metadata
-    , rootDirectoryPath = def.rootDirectoryPath
-    , workingDirectoryPath = workingDirectoryPath relPath
     }
 
 
@@ -116,14 +110,14 @@ baseName name =
         |> String.join "."
 
 
-extensionName : String -> Maybe String
-extensionName name =
-    Array.last (String.split "." name)
-
-
-workingDirectoryPath : Path File -> Path Directory
-workingDirectoryPath relPath =
+directoryPath : Path File -> Path Directory
+directoryPath relPath =
     relPath
         |> Path.unwrap
         |> Array.dropLast 1
         |> Path.directory
+
+
+extensionName : String -> Maybe String
+extensionName name =
+    Array.last (String.split "." name)

@@ -2,9 +2,11 @@ module Main exposing ( main )
 
 import FileSystem
 import Node.Program
-import Path
-import Shikensu exposing ( Focus(..) )
+import Shikensu
 import Shikensu.Contrib as Shikensu
+import Shikensu.Definition as Shikensu
+import Shikensu.Focus exposing ( Focus(..) )
+import Shikensu.Path as Path
 import Task
 
 
@@ -48,31 +50,44 @@ init =
 
 
 perform fsPermission =
-    CurrentDirectory
+    [ ".."
+    , "example"
+    , "content"
+    ]
+        |> Path.directory
+        |> Relative
         |> Shikensu.list fsPermission
-        -- |> Task.map (Shikensu.withExtension "md")
-        -- |> Task.andThen Shikensu.read
-        -- |> Task.map flow
-        -- |> Task.andThen (Shikensu.write buildDir)
+        |> Task.map (Shikensu.withExtension "md")
+        |> Task.andThen (Shikensu.read fsPermission)
+        -- |> Task.map translate
+        |> Task.andThen
+                (\result ->
+                    result
+                        |> Shikensu.write fsPermission buildDir
+                        |> Task.map (\_ -> result)
+                )
         |> Task.attempt
-                (\compendium ->
-                    let
-                        _ =
-                            Debug.log "" compendium
-                    in
-                    Bypass
+                (\result ->
+                    case Debug.log "" result of
+                        Ok compendium ->
+                            Bypass
+
+                        Err err ->
+                            Bypass
                 )
 
 
 buildDir =
-    [ "build"
+    [ ".."
+    , "example"
+    , "build"
     ]
         |> Path.directory
         |> Relative
 
 
 
--- flow =
+-- translate =
 --     Shikensu.permalink >> renderMarkdown
 
 

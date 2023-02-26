@@ -2,19 +2,14 @@ module Shikensu exposing (..)
 
 import Bytes.Encode
 import FileSystem
-import Path exposing ( Path, Kind(..), Directory, File )
-import Shikensu.Definition as Definition exposing ( Compendium )
+import Shikensu.Definition as Definition exposing ( Compendium, Definition )
+import Shikensu.Focus as Focus exposing ( Focus(..) )
+import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 import Task exposing ( Task )
 
 
 
 -- 🧩
-
-
-type Focus
-    = CurrentDirectory
-    | Relative (Path Directory)
-    | Absolute (Path Directory)
 
 
 type Error
@@ -28,38 +23,20 @@ type Error
 
 list : FileSystem.Permission -> Focus -> Task Error Compendium
 list permission focus =
-    focus
-        |> focusToPath
-        |> recursiveList
-                permission
-                (case focus of
-                    Absolute path ->
-                        path
-
-                    _ ->
-                        -- TODO: Root dir is not correct, haven't found a way to get the root dir.
-                        Path.directory []
-                )
+    recursiveList focus permission (Path.directory [])
 
 
-recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task Error Compendium
-recursiveList permission rootPath relativePath =
-    let
-        relativePathParts =
-            Path.unwrap relativePath
-    in
+recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task Error Compendium
+recursiveList focus permission relativePath =
     relativePath
+        |> Path.combine (Focus.toPath focus)
         |> Path.toPosix
                 { absolute = False
                 }
-        |> String.append ""
         |> FileSystem.listDirectoryContent permission
         |> Task.mapError PlatformAccessError
         |> Task.andThen
                 (\listing ->
-                    -- Because we can't determine easily what is a directory and what is a file,
-                    -- we assume everything is a directory and recover from an access error
-                    -- when it we discover it is a file.
                     listing
                         |> Array.filter
                                 (\name ->
@@ -71,37 +48,38 @@ recursiveList permission rootPath relativePath =
                                 )
                         |> Array.map
                                 (\name ->
-                                    let
-                                        path =
-                                            Array.pushLast name relativePathParts
-
-                                        filePath =
-                                            Path.file path
-                                    in
-                                    path
+                                    name
+                                        |> Array.singleton
                                         |> Path.directory
-                                        |> recursiveList permission rootPath
-                                        |> Task.onError
-                                                (\err ->
-                                                    case err of
-                                                        PlatformAccessError (FileSystem.AccessErrorUnknown errMessage) ->
-                                                            if String.contains "ENOTDIR:" errMessage then
-                                                                Task.succeed
-                                                                    [ Definition.create rootPath filePath
-                                                                    ]
-                                                            else
-                                                                Task.fail err
-
-                                                        PlatformAccessError _ ->
-                                                            Task.fail err
-
-                                                        PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->
-                                                            Task.fail err
-                                                )
+                                        |> Path.combine relativePath
+                                        |> recursiveList focus permission
                                 )
                         |> Task.sequence
                 )
         |> Task.map Array.flatten
+        |> Task.onError
+                (\err ->
+                    -- Because we can't determine easily what is a directory and what is a file,
+                    -- we assume everything is a directory and recover from an access error
+                    -- when it we discover it is a file.
+                    case err of
+                        PlatformAccessError (FileSystem.AccessErrorUnknown errMessage) ->
+                            if String.contains "ENOTDIR:" errMessage then
+                                relativePath
+                                    |> Path.unwrap
+                                    |> Path.file
+                                    |> Definition.create focus
+                                    |> Array.singleton
+                                    |> Task.succeed
+                            else
+                                Task.fail err
+
+                        PlatformAccessError _ ->
+                            Task.fail err
+
+                        PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->
+                            Task.fail err
+                )
 
 
 
@@ -116,6 +94,7 @@ read permission dict =
                     -- TODO: Prefer the absolute path once we have that.
                     def
                         |> Definition.relativePath
+                        |> Path.combine (Focus.toPath def.focus)
                         |> Path.toPosix
                                 { absolute = False
                                 }
@@ -141,44 +120,57 @@ read permission dict =
 
 write : FileSystem.Permission -> Focus -> Compendium -> Task Error {}
 write permission focus dict =
-    -- dict
-    --     |> Array.map
-    --             (\def ->
-    --                 -- TODO: Prefer the absolute path once we have that.
-    --                 def
-    --                     |> Definition.relativePath
-    --                     |> Path.toPosix
-    --                             { absolute = False
-    --                             }
-    --                     |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
-    --                     |> Task.mapError PlatformAccessError
-    --                     |> Task.andThen
-    --                             (\handle ->
-    --                                 def.content
-    --                                     |> Maybe.withDefault (Bytes.Encode.string "")
-    --                                     |> FileSystem.write handle
-    --                                     |> Task.mapError PlatformUnknownError
-    --                                     |> Task.map (\bytes -> { def | content = Just bytes })
-    --                             )
-    --             )
-    --     |> Task.sequence
-    -- 
-    -- NOTE: Waiting on https://github.com/gren-lang/node/issues/2
-    Task.succeed {}
+    dict
+        |> Array.map (writeDef permission focus)
+        |> Task.sequence
+        |> Task.map (\_ -> {})
 
 
+writeDef : FileSystem.Permission -> Focus -> Definition -> Task Error {}
+writeDef permission focus def =
+    -- TODO: Prefer the absolute path once we have that.
+    let
+        path =
+            def
+                |> Definition.relativePath
+                |> Path.combine (Focus.toPath focus)
+    in
+    path
+        |> Path.toPosix
+                { absolute = False
+                }
+        |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
+        |> Task.mapError PlatformAccessError
+        |> Task.andThen
+                (\handle ->
+                    def.content
+                        |> Maybe.withDefault
+                                (Bytes.Encode.encode
+                                    <| Bytes.Encode.string ""
+                                )
+                        |> FileSystem.write handle
+                        |> Task.mapError PlatformUnknownError
+                )
+        |> Task.map (\_ -> {})
+        |> Task.onError
+                (\err ->
+                    case err of
+                        PlatformAccessError FileSystem.AccessErrorNotFound ->
+                            -- Make sure directory tree exists
+                            let
+                                directoryPath =
+                                    path
+                                        |> Path.map (Array.dropLast 1)
+                                        |> Path.toPosix
+                                                { absolute = False
+                                                }
+                            in
+                            { recursive = True
+                            }
+                                |> FileSystem.makeDirectory permission directoryPath
+                                |> Task.mapError PlatformAccessError
+                                |> Task.andThen (\_ -> writeDef permission focus def)
 
--- 🛠
-
-
-focusToPath : Focus -> Path Directory
-focusToPath focus =
-    case focus of
-        CurrentDirectory ->
-            Path.directory []
-
-        Relative path ->
-            path
-
-        Absolute path ->
-            path
+                        _ ->
+                            Task.fail err
+                )

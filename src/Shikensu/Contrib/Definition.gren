@@ -1,8 +1,8 @@
 module Shikensu.Contrib.Definition exposing (..)
 
 import Bytes exposing ( Bytes )
-import Path exposing ( Path, Kind(..), Directory, File )
 import Shikensu.Definition as Definition exposing ( Definition )
+import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
 rename : Path File -> Path File -> Definition -> Definition
