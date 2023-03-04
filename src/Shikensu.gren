@@ -1,7 +1,8 @@
-module Shikensu exposing (..)
+module Shikensu exposing ( Error(..), Program(..), list, program, read, write, writeDef, errorToString, print )
 
 import Bytes.Encode
 import FileSystem
+import Node.Program as Node
 import Shikensu.Definition as Definition exposing ( Compendium, Definition )
 import Shikensu.Focus as Focus exposing ( Focus(..) )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
@@ -17,6 +18,10 @@ type Error
     | PlatformUnknownError FileSystem.UnknownFileSystemError
 
 
+type alias Program =
+    Node.Program {} {}
+
+
 
 -- 🚀
 
@@ -26,60 +31,25 @@ list permission focus =
     recursiveList focus permission (Path.directory [])
 
 
-recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task Error Compendium
-recursiveList focus permission relativePath =
-    relativePath
-        |> Path.combine (Focus.toPath focus)
-        |> Path.toPosix
-                { absolute = False
+program : (FileSystem.Permission -> Cmd {}) -> Node.Program
+program commandFn =
+    Node.define
+        { init =
+            Node.await
+                FileSystem.initialize
+                (\fsPermission ->
+                    Node.startProgram
+                        { model = {}
+                        , command = commandFn fsPermission
+                        }
+                )
+        , update =
+            \_ model ->
+                { model = model
+                , command = Cmd.none
                 }
-        |> FileSystem.listDirectoryContent permission
-        |> Task.mapError PlatformAccessError
-        |> Task.andThen
-                (\listing ->
-                    listing
-                        |> Array.filter
-                                (\name ->
-                                    -- TODO: Add option to also list hidden files
-                                    if String.startsWith "." name then
-                                        False
-                                    else
-                                        True
-                                )
-                        |> Array.map
-                                (\name ->
-                                    name
-                                        |> Array.singleton
-                                        |> Path.directory
-                                        |> Path.combine relativePath
-                                        |> recursiveList focus permission
-                                )
-                        |> Task.sequence
-                )
-        |> Task.map Array.flatten
-        |> Task.onError
-                (\err ->
-                    -- Because we can't determine easily what is a directory and what is a file,
-                    -- we assume everything is a directory and recover from an access error
-                    -- when it we discover it is a file.
-                    case err of
-                        PlatformAccessError (FileSystem.AccessErrorUnknown errMessage) ->
-                            if String.contains "ENOTDIR:" errMessage then
-                                relativePath
-                                    |> Path.unwrap
-                                    |> Path.file
-                                    |> Definition.create focus
-                                    |> Array.singleton
-                                    |> Task.succeed
-                            else
-                                Task.fail err
-
-                        PlatformAccessError _ ->
-                            Task.fail err
-
-                        PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->
-                            Task.fail err
-                )
+        , subscriptions = \_ -> Sub.none
+        }
 
 
 
@@ -172,5 +142,80 @@ writeDef permission focus def =
                                 |> Task.andThen (\_ -> writeDef permission focus def)
 
                         _ ->
+                            Task.fail err
+                )
+
+
+
+-- ERRORS
+
+
+errorToString : Error -> String
+errorToString error =
+    case error of
+        PlatformAccessError FileSystem.AccessError ->
+            ""
+
+        PlatformUnknownError FileSystem.UnknownFileSystemError ->
+            ""
+
+
+
+-- PRINT
+-- ㊙️
+
+
+recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task Error Compendium
+recursiveList focus permission relativePath =
+    relativePath
+        |> Path.combine (Focus.toPath focus)
+        |> Path.toPosix
+                { absolute = False
+                }
+        |> FileSystem.listDirectoryContent permission
+        |> Task.mapError PlatformAccessError
+        |> Task.andThen
+                (\listing ->
+                    listing
+                        |> Array.filter
+                                (\name ->
+                                    -- TODO: Add option to also list hidden files
+                                    if String.startsWith "." name then
+                                        False
+                                    else
+                                        True
+                                )
+                        |> Array.map
+                                (\name ->
+                                    name
+                                        |> Array.singleton
+                                        |> Path.directory
+                                        |> Path.combine relativePath
+                                        |> recursiveList focus permission
+                                )
+                        |> Task.sequence
+                )
+        |> Task.map Array.flatten
+        |> Task.onError
+                (\err ->
+                    -- Because we can't determine easily what is a directory and what is a file,
+                    -- we assume everything is a directory and recover from an access error
+                    -- when it we discover it is a file.
+                    case err of
+                        PlatformAccessError (FileSystem.AccessErrorUnknown errMessage) ->
+                            if String.contains "ENOTDIR:" errMessage then
+                                relativePath
+                                    |> Path.unwrap
+                                    |> Path.file
+                                    |> Definition.create focus
+                                    |> Array.singleton
+                                    |> Task.succeed
+                            else
+                                Task.fail err
+
+                        PlatformAccessError _ ->
+                            Task.fail err
+
+                        PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->
                             Task.fail err
                 )

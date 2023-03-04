@@ -6,21 +6,81 @@ import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
 import Json.Encode as Json
 import Shikensu.Contrib.Definition as Contrib.Definition
-import Shikensu.Definition exposing ( Definition, Compendium )
+import Shikensu.Definition as Definition exposing ( Definition, Compendium )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
+{-| Clear metadata.
+-}
+clearMetadata : Compendium -> Compendium
+clearMetadata =
+    Array.map Contrib.Definition.clearMetadata
 
--- TODO:
--- https://github.com/icidasset/shikensu-haskell/blob/master/src/Shikensu/Contrib.hs
--- 
--- * clearMetadata
--- * clone
--- * copyPropsToMetadata
--- * exclude
--- * insertMetadata
--- * permalink
--- * prefixDirname
+
+{-| Clone.
+
+For each definition that has the given `relativePath` (1st argument),
+make a clone with a new `relativePath` (2nd argument),
+and add that into the compendium just after the matching definition.
+
+    >>> clone "index.html" "200.html" compendium
+
+-}
+clone : Path.File -> Path.File -> Compendium -> Compendium
+clone existingPath newPath =
+    Array.foldr
+        (\def acc ->
+            if Definition.relativePath def == existingPath then
+                Array.append
+                    acc
+                    [ def
+                    , Definition.fork newPath def
+                    ]
+            else
+                Array.append
+                    acc
+                    [ def
+                    ]
+        )
+        []
+
+
+{-| Copy definition properties into the metadata.
+-}
+copyPropsToMetadata : Compendium -> Compendium
+copyPropsToMetadata =
+    Array.map Contrib.Definition.copyPropsToMetadata
+
+
+{-| Exclude.
+
+Filter out the definitions that have the given `relativePath`.
+
+-}
+exclude : Path.File -> Compendium -> Compendium
+exclude path =
+    Array.filter (\def -> Definition.relativePath def /= path)
+
+
+{-| Insert additional metadata.
+-}
+insertMetadata : Dict String Json.Value -> Compendium -> Compendium
+insertMetadata additionalMetadata =
+    Array.map (Contrib.Definition.insertMetadata additionalMetadata)
+
+
+{-| Permalink.
+
+Append the baseName to the directoryPath
+and change the baseName to the given string.
+It will NOT change definitions that already have the new baseName.
+
+    >>> permalink "index" compendium
+
+-}
+permalink : String -> Compendium -> Compendium
+permalink newBasename =
+    Array.map (Contrib.Definition.permalink newBasename)
 
 
 {-| Rename.

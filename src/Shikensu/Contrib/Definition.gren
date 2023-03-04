@@ -1,8 +1,74 @@
 module Shikensu.Contrib.Definition exposing (..)
 
+{-| See `Shikensu.Contrib` module for documentation.
+-}
+
 import Bytes exposing ( Bytes )
+import Dict exposing ( Dict )
+import Json.Encode as Json
 import Shikensu.Definition as Definition exposing ( Definition )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
+
+
+clearMetadata : Definition -> Definition
+clearMetadata def =
+    { def | metadata = Dict.empty }
+
+
+copyPropsToMetadata : Definition -> Definition
+copyPropsToMetadata def =
+    def.metadata
+        |> Dict.union
+                (Dict.fromArray
+                    [ { key = "baseName"
+                      , value = Json.string def.baseName
+                      }
+                    , { key = "directoryPath"
+                      , value =
+                            Json.string
+                                (Path.toPosix
+                                    { absolute = False
+                                    }
+                                    def.directoryPath
+                                )
+                      }
+                    , { key = "extensionName"
+                      , value = Maybe.withDefault Json.null (Maybe.map Json.string def.extensionName)
+                      }
+                    , { key = "relativePath"
+                      , value =
+                            Json.string
+                                (Path.toPosix
+                                    { absolute = False
+                                    }
+                                    (Definition.relativePath def)
+                                )
+                      }
+                    ]
+                )
+        |> (\dict -> { def | metadata = dict })
+
+
+insertMetadata : Dict String Json.Value -> Definition -> Definition
+insertMetadata additionalMetadata def =
+    def.metadata
+        |> Dict.union additionalMetadata
+        |> (\dict -> { def | metadata = dict })
+
+
+permalink : String -> Definition -> Definition
+permalink newBaseName def =
+    if def.baseName /= newBaseName then
+        let
+            newDirectoryPath =
+                Path.map (Array.pushLast def.baseName) def.directoryPath
+        in
+        { def
+            | baseName = newBaseName
+            , directoryPath = newDirectoryPath
+        }
+    else
+        def
 
 
 rename : Path File -> Path File -> Definition -> Definition
