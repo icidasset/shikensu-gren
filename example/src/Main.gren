@@ -12,10 +12,10 @@ import Task
 
 main : Shikensu.Program
 main =
-    Shikensu.program sequence
+    Shikensu.print sequence
 
 
-sequence : FileSystem.Permission -> Cmd {}
+sequence : FileSystem.Permission -> Shikensu.Task
 sequence fsPermission =
     [ ".."
     , "example"
@@ -28,7 +28,6 @@ sequence fsPermission =
         |> Task.andThen (Shikensu.read fsPermission)
         |> Task.map identity
         |> Task.andThen (Shikensu.write fsPermission buildDir)
-        |> Shikensu.print
 
 
 buildDir : Shikensu.Focus

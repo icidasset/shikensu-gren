@@ -1,12 +1,12 @@
-module Shikensu exposing ( Error(..), Program(..), list, program, read, write, writeDef, errorToString, print )
+module Shikensu exposing ( Error(..), Program, Task, list, print, read, write, writeDef, errorToString )
 
 import Bytes.Encode
 import FileSystem
 import Node.Program as Node
 import Shikensu.Definition as Definition exposing ( Compendium, Definition )
 import Shikensu.Focus as Focus exposing ( Focus(..) )
-import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
-import Task exposing ( Task )
+import Shikensu.Path as Path exposing ( Path, Kind(..), Encapsulated, Directory, File )
+import Task
 
 
 
@@ -14,7 +14,7 @@ import Task exposing ( Task )
 
 
 type Error
-    = PlatformAccessError FileSystem.AccessError
+    = PlatformAccessError (Path Encapsulated) FileSystem.AccessError
     | PlatformUnknownError FileSystem.UnknownFileSystemError
 
 
@@ -22,54 +22,46 @@ type alias Program =
     Node.Program {} {}
 
 
+type alias Task =
+    Task.Task Error Compendium
+
+
 
 -- 🚀
 
 
-list : FileSystem.Permission -> Focus -> Task Error Compendium
+list : FileSystem.Permission -> Focus -> Task
 list permission focus =
     recursiveList focus permission (Path.directory [])
 
 
-program : (FileSystem.Permission -> Cmd {}) -> Node.Program
-program commandFn =
-    Node.define
-        { init =
-            Node.await
-                FileSystem.initialize
-                (\fsPermission ->
-                    Node.startProgram
-                        { model = {}
-                        , command = commandFn fsPermission
-                        }
-                )
-        , update =
-            \_ model ->
-                { model = model
-                , command = Cmd.none
-                }
-        , subscriptions = \_ -> Sub.none
-        }
+print : (FileSystem.Permission -> Task) -> Program
+print taskFn =
+    {}
 
 
 
 -- IO
 
 
-read : FileSystem.Permission -> Compendium -> Task Error Compendium
+read : FileSystem.Permission -> Compendium -> Task
 read permission dict =
     dict
         |> Array.map
                 (\def ->
                     -- TODO: Prefer the absolute path once we have that.
-                    def
-                        |> Definition.relativePath
-                        |> Path.combine (Focus.toPath def.focus)
+                    let
+                        path =
+                            def
+                                |> Definition.relativePath
+                                |> Path.combine (Focus.toPath def.focus)
+                    in
+                    path
                         |> Path.toPosix
                                 { absolute = False
                                 }
                         |> FileSystem.openForRead permission
-                        |> Task.mapError PlatformAccessError
+                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
                         |> Task.andThen
                                 (\handle ->
                                     handle
@@ -88,12 +80,12 @@ read permission dict =
         |> Task.sequence
 
 
-write : FileSystem.Permission -> Focus -> Compendium -> Task Error {}
-write permission focus dict =
-    dict
+write : FileSystem.Permission -> Focus -> Compendium -> Task
+write permission focus compendium =
+    compendium
         |> Array.map (writeDef permission focus)
         |> Task.sequence
-        |> Task.map (\_ -> {})
+        |> Task.map (\_ -> compendium)
 
 
 writeDef : FileSystem.Permission -> Focus -> Definition -> Task Error {}
@@ -110,7 +102,7 @@ writeDef permission focus def =
                 { absolute = False
                 }
         |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
-        |> Task.mapError PlatformAccessError
+        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
         |> Task.andThen
                 (\handle ->
                     def.content
@@ -125,20 +117,22 @@ writeDef permission focus def =
         |> Task.onError
                 (\err ->
                     case err of
-                        PlatformAccessError FileSystem.AccessErrorNotFound ->
+                        PlatformAccessError _ FileSystem.AccessErrorNotFound ->
                             -- Make sure directory tree exists
                             let
                                 directoryPath =
-                                    path
-                                        |> Path.map (Array.dropLast 1)
-                                        |> Path.toPosix
-                                                { absolute = False
-                                                }
+                                    Path.map (Array.dropLast 1) path
+
+                                directoryPathString =
+                                    Path.toPosix
+                                        { absolute = False
+                                        }
+                                        directoryPath
                             in
                             { recursive = True
                             }
-                                |> FileSystem.makeDirectory permission directoryPath
-                                |> Task.mapError PlatformAccessError
+                                |> FileSystem.makeDirectory permission directoryPathString
+                                |> Task.mapError (PlatformAccessError (Path.encapsulate directoryPath))
                                 |> Task.andThen (\_ -> writeDef permission focus def)
 
                         _ ->
@@ -153,27 +147,73 @@ writeDef permission focus def =
 errorToString : Error -> String
 errorToString error =
     case error of
-        PlatformAccessError FileSystem.AccessError ->
-            ""
+        PlatformAccessError path FileSystem.AccessErrorNotFound ->
+            "Access error, couldn\'t find path \'"
+                ++ Path.toPosix
+                        { absolute = False
+                        }
+                        path
+                ++ "\'"
 
-        PlatformUnknownError FileSystem.UnknownFileSystemError ->
-            ""
+        PlatformAccessError path FileSystem.AccessErrorNoAccess ->
+            "Access error, couldn\'t access path \'"
+                ++ Path.toPosix
+                        { absolute = False
+                        }
+                        path
+                ++ "\'"
+
+        PlatformAccessError path (FileSystem.AccessErrorUnknown accessError) ->
+            "Access error, \'"
+                ++ accessError
+                ++ "\' with path \'"
+                ++ Path.toPosix
+                        { absolute = False
+                        }
+                        path
+                ++ "\'"
+
+        PlatformUnknownError (FileSystem.UnknownFileSystemError string) ->
+            "Unknown file system error: " ++ string
 
 
 
--- PRINT
 -- ㊙️
+
+
+program : (FileSystem.Permission -> Task) -> Program
+program taskFn =
+    Node.define
+        { init =
+            Node.await
+                FileSystem.initialize
+                (\fsPermission ->
+                    Node.startProgram
+                        { model = {}
+                        , command = taskFn fsPermission
+                        }
+                )
+        , update =
+            \_ model ->
+                { model = model
+                , command = Cmd.none
+                }
+        , subscriptions = \_ -> Sub.none
+        }
 
 
 recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task Error Compendium
 recursiveList focus permission relativePath =
-    relativePath
-        |> Path.combine (Focus.toPath focus)
+    let
+        path =
+            Path.combine (Focus.toPath focus) relativePath
+    in
+    path
         |> Path.toPosix
                 { absolute = False
                 }
         |> FileSystem.listDirectoryContent permission
-        |> Task.mapError PlatformAccessError
+        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
         |> Task.andThen
                 (\listing ->
                     listing
@@ -202,7 +242,7 @@ recursiveList focus permission relativePath =
                     -- we assume everything is a directory and recover from an access error
                     -- when it we discover it is a file.
                     case err of
-                        PlatformAccessError (FileSystem.AccessErrorUnknown errMessage) ->
+                        PlatformAccessError _ (FileSystem.AccessErrorUnknown errMessage) ->
                             if String.contains "ENOTDIR:" errMessage then
                                 relativePath
                                     |> Path.unwrap
@@ -213,7 +253,7 @@ recursiveList focus permission relativePath =
                             else
                                 Task.fail err
 
-                        PlatformAccessError _ ->
+                        PlatformAccessError _ _ ->
                             Task.fail err
 
                         PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->

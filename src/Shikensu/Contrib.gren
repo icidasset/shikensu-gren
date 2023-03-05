@@ -26,21 +26,18 @@ and add that into the compendium just after the matching definition.
     >>> clone "index.html" "200.html" compendium
 
 -}
-clone : Path.File -> Path.File -> Compendium -> Compendium
+clone : Path File -> Path File -> Compendium -> Compendium
 clone existingPath newPath =
     Array.foldr
         (\def acc ->
             if Definition.relativePath def == existingPath then
-                Array.append
-                    acc
+                Array.postfix
                     [ def
                     , Definition.fork newPath def
                     ]
-            else
-                Array.append
                     acc
-                    [ def
-                    ]
+            else
+                Array.pushLast def acc
         )
         []
 
@@ -57,7 +54,7 @@ copyPropsToMetadata =
 Filter out the definitions that have the given `relativePath`.
 
 -}
-exclude : Path.File -> Compendium -> Compendium
+exclude : Path File -> Compendium -> Compendium
 exclude path =
     Array.filter (\def -> Definition.relativePath def /= path)
 
