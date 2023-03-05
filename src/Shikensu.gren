@@ -1,4 +1,4 @@
-module Shikensu exposing ( Error(..), Program, Task, list, print, read, write, writeDef, errorToString )
+module Shikensu exposing ( Error(..), Program, Task, list, program, read, write, writeDef, print, errorToString )
 
 import Bytes.Encode
 import FileSystem
@@ -35,9 +35,25 @@ list permission focus =
     recursiveList focus permission (Path.directory [])
 
 
-print : (FileSystem.Permission -> Task) -> Program
-print taskFn =
-    {}
+program : (FileSystem.Permission -> Task) -> Program
+program taskFn =
+    Node.define
+        { init =
+            Node.await
+                FileSystem.initialize
+                (\fsPermission ->
+                    Node.startProgram
+                        { model = {}
+                        , command = Task.attempt (\_ -> {}) (taskFn fsPermission)
+                        }
+                )
+        , update =
+            \_ model ->
+                { model = model
+                , command = Cmd.none
+                }
+        , subscriptions = \_ -> Sub.none
+        }
 
 
 
@@ -88,7 +104,7 @@ write permission focus compendium =
         |> Task.map (\_ -> compendium)
 
 
-writeDef : FileSystem.Permission -> Focus -> Definition -> Task Error {}
+writeDef : FileSystem.Permission -> Focus -> Definition -> Task.Task Error {}
 writeDef permission focus def =
     -- TODO: Prefer the absolute path once we have that.
     let
@@ -141,6 +157,16 @@ writeDef permission focus def =
 
 
 
+-- TERMINAL
+
+
+print : Task -> Task
+print task =
+    -- TODO
+    task
+
+
+
 -- ERRORS
 
 
@@ -181,28 +207,7 @@ errorToString error =
 -- ㊙️
 
 
-program : (FileSystem.Permission -> Task) -> Program
-program taskFn =
-    Node.define
-        { init =
-            Node.await
-                FileSystem.initialize
-                (\fsPermission ->
-                    Node.startProgram
-                        { model = {}
-                        , command = taskFn fsPermission
-                        }
-                )
-        , update =
-            \_ model ->
-                { model = model
-                , command = Cmd.none
-                }
-        , subscriptions = \_ -> Sub.none
-        }
-
-
-recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task Error Compendium
+recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task
 recursiveList focus permission relativePath =
     let
         path =

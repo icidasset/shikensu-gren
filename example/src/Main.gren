@@ -12,7 +12,7 @@ import Task
 
 main : Shikensu.Program
 main =
-    Shikensu.print sequence
+    Shikensu.program sequence
 
 
 sequence : FileSystem.Permission -> Shikensu.Task
