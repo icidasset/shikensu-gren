@@ -1,5 +1,6 @@
 module Main exposing ( main )
 
+import Bytes exposing ( Bytes )
 import FileSystem
 import Node.Program exposing ( Program )
 import Shikensu
@@ -26,7 +27,13 @@ sequence fsPermission =
         |> Shikensu.list fsPermission
         |> Task.map (Shikensu.withExtension "md")
         |> Task.andThen (Shikensu.read fsPermission)
-        |> Task.map identity
+        |> Task.map
+                (\compendium ->
+                    compendium
+                        |> Shikensu.permalink "index"
+                        |> Shikensu.renameExtension "md" "html"
+                        |> Shikensu.renderContent renderMarkdown
+                )
         |> Task.andThen (Shikensu.write fsPermission buildDir)
 
 
@@ -38,3 +45,9 @@ buildDir =
     ]
         |> Path.directory
         |> Relative
+
+
+renderMarkdown : Shikensu.Definition -> Maybe Bytes
+renderMarkdown def =
+    -- TODO
+    Nothing
