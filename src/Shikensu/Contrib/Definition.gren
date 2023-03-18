@@ -1,4 +1,4 @@
-module Shikensu.Contrib.Definition exposing (..)
+module Shikensu.Contrib.Definition exposing ( clearMetadata, copyPropsToMetadata, insertMetadata, permalink, rename, renameExtension, renderContent )
 
 {-| See `Shikensu.Contrib` module for documentation.
 -}
@@ -10,11 +10,13 @@ import Shikensu.Definition as Definition exposing ( Definition )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
+{-|-}
 clearMetadata : Definition -> Definition
 clearMetadata def =
     { def | metadata = Dict.empty }
 
 
+{-|-}
 copyPropsToMetadata : Definition -> Definition
 copyPropsToMetadata def =
     def.metadata
@@ -49,6 +51,7 @@ copyPropsToMetadata def =
         |> (\dict -> { def | metadata = dict })
 
 
+{-|-}
 insertMetadata : Dict String Json.Value -> Definition -> Definition
 insertMetadata additionalMetadata def =
     def.metadata
@@ -56,6 +59,7 @@ insertMetadata additionalMetadata def =
         |> (\dict -> { def | metadata = dict })
 
 
+{-|-}
 permalink : String -> Definition -> Definition
 permalink newBaseName def =
     if def.baseName /= newBaseName then
@@ -71,6 +75,7 @@ permalink newBaseName def =
         def
 
 
+{-|-}
 rename : Path File -> Path File -> Definition -> Definition
 rename oldPath newPath def =
     if Definition.relativePath def == oldPath then
@@ -79,6 +84,7 @@ rename oldPath newPath def =
         def
 
 
+{-|-}
 renameExtension : String -> String -> Definition -> Definition
 renameExtension oldExtname newExtname def =
     if def.extensionName == Just oldExtname then
@@ -87,6 +93,7 @@ renameExtension oldExtname newExtname def =
         def
 
 
+{-|-}
 renderContent : (Definition -> Maybe Bytes) -> Definition -> Definition
 renderContent renderer def =
     { def | content = renderer def }

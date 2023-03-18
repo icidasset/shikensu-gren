@@ -1,5 +1,11 @@
 module Shikensu.Focus exposing ( Focus(..), toPath )
 
+{-|
+
+@docs Focus, toPath
+
+-}
+
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
@@ -7,6 +13,7 @@ import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 -- 🧩
 
 
+{-|-}
 type Focus
     = CurrentDirectory
     | Relative (Path Directory)
@@ -18,6 +25,7 @@ type Focus
 -- 🛠
 
 
+{-|-}
 toPath : Focus -> Path Directory
 toPath focus =
     case focus of

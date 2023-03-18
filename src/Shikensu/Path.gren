@@ -25,7 +25,7 @@ module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), d
 
 # Functions
 
-@docs combine, kind, map, unwrap
+@docs combine, kind, length, map, unwrap
 
 -}
 

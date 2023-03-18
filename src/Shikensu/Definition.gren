@@ -1,6 +1,10 @@
 module Shikensu.Definition exposing ( Compendium, Definition, create, fork, relativePath )
 
-{-|-}
+{-|
+
+@docs Definition, Compendium, create, fork, relativePath
+
+-}
 
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
@@ -62,6 +66,8 @@ relativePath def =
 -- 🛠
 
 
+{-| Create a definition.
+-}
 create : Focus -> Path File -> Definition
 create focus relPath =
     let
@@ -80,6 +86,8 @@ create focus relPath =
     }
 
 
+{-| Fork a definition.
+-}
 fork : Path File -> Definition -> Definition
 fork relPath def =
     let

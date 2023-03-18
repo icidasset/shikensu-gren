@@ -2,14 +2,14 @@
     "type": "application",
     "platform": "node",
     "source-directories": [
-        "../src",
         "src"
     ],
-    "gren-version": "0.2.0",
+    "gren-version": "0.2.1",
     "dependencies": {
         "direct": {
             "gren-lang/core": "3.0.0",
-            "gren-lang/node": "1.1.0"
+            "gren-lang/node": "1.2.0",
+            "icidasset/shikensu-gren": "local:.."
         },
         "indirect": {}
     }

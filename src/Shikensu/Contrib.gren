@@ -1,6 +1,10 @@
-module Shikensu.Contrib exposing (..)
+module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withExtension )
 
-{-|-}
+{-|
+
+@docs clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withExtension
+
+-}
 
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )

@@ -1,4 +1,4 @@
-module Path.Encapsulated exposing ( toDirectory, toFile )
+module Shikensu.Path.Encapsulated exposing ( toDirectory, toFile )
 
 {-|
 
@@ -8,7 +8,7 @@ module Path.Encapsulated exposing ( toDirectory, toFile )
 
 -}
 
-import Path exposing ( Directory, Encapsulated, File, Kind(..), Path, directory, file )
+import Shikensu.Path as Path exposing ( Directory, Encapsulated, File, Kind(..), Path, directory, file )
 
 
 

@@ -1,8 +1,8 @@
 module Main exposing ( main )
 
 import Bytes exposing ( Bytes )
+import Bytes.Decode as Bytes
 import FileSystem
-import Node.Program exposing ( Program )
 import Shikensu
 import Shikensu.Contrib as Shikensu
 import Shikensu.Definition as Shikensu
@@ -49,5 +49,4 @@ buildDir =
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
 renderMarkdown def =
-    -- TODO
     Nothing
