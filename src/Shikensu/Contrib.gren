@@ -156,6 +156,13 @@ transformContent =
     renderContent
 
 
+{-| Only keep definitions with the given base name.
+-}
+withBaseName : String -> Compendium -> Compendium
+withBaseName baseName =
+    Array.filter (\def -> def.baseName == Just baseName)
+
+
 {-| Only keep definitions with the given extension.
 -}
 withExtension : String -> Compendium -> Compendium
