@@ -5,7 +5,7 @@ module Shikensu exposing ( Error(..), Program, Task, list, program, read, write,
 
 # 🚀
 
-@docs list, program, Program, Task, Error
+@docs program, Program, list, Task, Error
 
 
 # IO
@@ -46,7 +46,8 @@ type alias Program =
     Node.Program {} {}
 
 
-{-|-}
+{-| Simple alias for working with tasks dealing with bundles.
+-}
 type alias Task =
     Task.Task Error Bundle
 
@@ -55,21 +56,12 @@ type alias Task =
 -- 🚀
 
 
-{-|-}
-list : FileSystem.Permission -> Focus -> Task
-list fsPermission focus =
-    []
-        |> Path.directory
-        |> recursiveList focus fsPermission
-        |> Task.map
-                (\compendium ->
-                    { fsPermission = fsPermission
-                    , compendium = compendium
-                    }
-                )
+{-| Create a Shikensu Program.
 
+This is basically a wrapper around `list` that creates a Program
+for you and initialises the needed permissions.
 
-{-|-}
+-}
 program : (Task -> Task) -> Focus -> Program
 program taskFn focus =
     Node.define
@@ -95,11 +87,27 @@ program taskFn focus =
         }
 
 
+{-| Recursively list a directory.
+-}
+list : FileSystem.Permission -> Focus -> Task
+list fsPermission focus =
+    []
+        |> Path.directory
+        |> recursiveList focus fsPermission
+        |> Task.map
+                (\compendium ->
+                    { fsPermission = fsPermission
+                    , compendium = compendium
+                    }
+                )
+
+
 
 -- IO
 
 
-{-|-}
+{-| Read the files in the given compendium/bundle (ie. set the content property in the definition)
+-}
 read : Bundle -> Task
 read bundle =
     bundle.compendium
@@ -137,7 +145,8 @@ read bundle =
         |> Task.map (\compendium -> { bundle | compendium = compendium })
 
 
-{-|-}
+{-| Write each definition to their respective location.
+-}
 write : Focus -> Bundle -> Task
 write focus bundle =
     bundle.compendium

@@ -21,18 +21,17 @@ main =
 
 
 sequence : Shikensu.Task -> Shikensu.Task
-sequence task =
-    task
-        |> Task.map (Shikensu.withExtension "md")
-        |> Task.andThen Shikensu.read
-        |> Task.map
+sequence =
+    Task.map (Shikensu.withExtension "md")
+        >> Task.andThen Shikensu.read
+        >> Task.map
                 (\bundle ->
                     bundle
                         |> Shikensu.permalink "index"
                         |> Shikensu.renameExtension "md" "html"
                         |> Shikensu.renderContent renderMarkdown
                 )
-        |> Task.andThen (Shikensu.write buildDir)
+        >> Task.andThen (Shikensu.write buildDir)
 
 
 buildDir : Shikensu.Focus
