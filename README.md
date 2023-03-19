@@ -9,11 +9,7 @@ __Build static websites with ease__, without conforming to a specific structure.
 ### Markdown example
 
 ```gren
-module Main exposing ( main )
-
 import Bytes exposing ( Bytes )
-import Bytes.Decode as Bytes
-import FileSystem
 import Shikensu
 import Shikensu.Contrib as Shikensu
 import Shikensu.Definition as Shikensu
@@ -24,28 +20,27 @@ import Task
 
 main : Shikensu.Program
 main =
-    Shikensu.program sequence
-
-
-sequence : FileSystem.Permission -> Shikensu.Task
-sequence fsPermission =
     [ ".."
     , "example"
     , "content"
     ]
         |> Path.directory
         |> Relative
-        |> Shikensu.list fsPermission
-        |> Task.map (Shikensu.withExtension "md")
-        |> Task.andThen (Shikensu.read fsPermission)
-        |> Task.map
-                (\compendium ->
-                    compendium
+        |> Shikensu.program sequence
+
+
+sequence : Shikensu.Task -> Shikensu.Task
+sequence =
+    Task.map (Shikensu.withExtension "md")
+        >> Task.andThen Shikensu.read
+        >> Task.map
+                (\bundle ->
+                    bundle
                         |> Shikensu.permalink "index"
                         |> Shikensu.renameExtension "md" "html"
                         |> Shikensu.renderContent renderMarkdown
                 )
-        |> Task.andThen (Shikensu.write fsPermission buildDir)
+        >> Task.andThen (Shikensu.write buildDir)
 
 
 buildDir : Shikensu.Focus
@@ -60,5 +55,5 @@ buildDir =
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
 renderMarkdown def =
-    Maybe.map Bytes.decode (Debug.log "" def.content)
+    Nothing
 ```
