@@ -1,0 +1,29 @@
+module Shikensu.Bundle exposing ( Bundle, mapCompendium )
+
+{-|
+
+@docs Bundle, mapCompendium
+
+-}
+
+import FileSystem
+import Shikensu.Definition exposing ( Compendium )
+
+
+
+-- 🧩
+
+
+type alias Bundle =
+    { fsPermission : FileSystem.Permission
+    , compendium : Compendium
+    }
+
+
+
+-- 🛠
+
+
+mapCompendium : (Compendium -> Compendium) -> Bundle -> Bundle
+mapCompendium fn bundle =
+    { bundle | compendium = fn bundle.compendium }

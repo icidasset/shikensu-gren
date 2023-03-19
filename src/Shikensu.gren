@@ -24,6 +24,7 @@ module Shikensu exposing ( Error(..), Program, Task, list, program, read, write,
 import Bytes.Encode
 import FileSystem
 import Node.Program as Node
+import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Definition as Definition exposing ( Compendium, Definition )
 import Shikensu.Focus as Focus exposing ( Focus(..) )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Encapsulated, Directory, File )
@@ -47,7 +48,7 @@ type alias Program =
 
 {-|-}
 type alias Task =
-    Task.Task Error Compendium
+    Task.Task Error Bundle
 
 
 
@@ -56,13 +57,21 @@ type alias Task =
 
 {-|-}
 list : FileSystem.Permission -> Focus -> Task
-list permission focus =
-    recursiveList focus permission (Path.directory [])
+list fsPermission focus =
+    []
+        |> Path.directory
+        |> recursiveList focus fsPermission
+        |> Task.map
+                (\compendium ->
+                    { fsPermission = fsPermission
+                    , compendium = compendium
+                    }
+                )
 
 
 {-|-}
-program : (FileSystem.Permission -> Task) -> Program
-program taskFn =
+program : (Task -> Task) -> Focus -> Program
+program taskFn focus =
     Node.define
         { init =
             Node.await
@@ -70,7 +79,11 @@ program taskFn =
                 (\fsPermission ->
                     Node.startProgram
                         { model = {}
-                        , command = Task.attempt (\_ -> {}) (taskFn fsPermission)
+                        , command =
+                            focus
+                                |> list fsPermission
+                                |> taskFn
+                                |> Task.attempt (\_ -> {})
                         }
                 )
         , update =
@@ -87,9 +100,9 @@ program taskFn =
 
 
 {-|-}
-read : FileSystem.Permission -> Compendium -> Task
-read permission dict =
-    dict
+read : Bundle -> Task
+read bundle =
+    bundle.compendium
         |> Array.map
                 (\def ->
                     -- TODO: Prefer the absolute path once we have that.
@@ -103,7 +116,7 @@ read permission dict =
                         |> Path.toPosix
                                 { absolute = False
                                 }
-                        |> FileSystem.openForRead permission
+                        |> FileSystem.openForRead bundle.fsPermission
                         |> Task.mapError (PlatformAccessError (Path.encapsulate path))
                         |> Task.andThen
                                 (\handle ->
@@ -121,15 +134,16 @@ read permission dict =
                                 )
                 )
         |> Task.sequence
+        |> Task.map (\compendium -> { bundle | compendium = compendium })
 
 
 {-|-}
-write : FileSystem.Permission -> Focus -> Compendium -> Task
-write permission focus compendium =
-    compendium
-        |> Array.map (writeDef permission focus)
+write : Focus -> Bundle -> Task
+write focus bundle =
+    bundle.compendium
+        |> Array.map (writeDef bundle.fsPermission focus)
         |> Task.sequence
-        |> Task.map (\_ -> compendium)
+        |> Task.map (\_ -> bundle)
 
 
 writeDef : FileSystem.Permission -> Focus -> Definition -> Task.Task Error {}
@@ -237,7 +251,7 @@ errorToString error =
 -- ㊙️
 
 
-recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task
+recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task.Task Error Compendium
 recursiveList focus permission relativePath =
     let
         path =

@@ -9,6 +9,7 @@ module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, ex
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
 import Json.Encode as Json
+import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Contrib.Definition as Contrib.Definition
 import Shikensu.Definition as Definition exposing ( Definition, Compendium )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
@@ -16,9 +17,9 @@ import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 {-| Clear metadata.
 -}
-clearMetadata : Compendium -> Compendium
+clearMetadata : Bundle -> Bundle
 clearMetadata =
-    Array.map Contrib.Definition.clearMetadata
+    Bundle.mapCompendium (Array.map Contrib.Definition.clearMetadata)
 
 
 {-| Clone.
@@ -27,30 +28,31 @@ For each definition that has the given `relativePath` (1st argument),
 make a clone with a new `relativePath` (2nd argument),
 and add that into the compendium just after the matching definition.
 
-    >>> clone "index.html" "200.html" compendium
+    >>> clone "index.html" "200.html" bundle
 
 -}
-clone : Path File -> Path File -> Compendium -> Compendium
+clone : Path File -> Path File -> Bundle -> Bundle
 clone existingPath newPath =
-    Array.foldr
-        (\def acc ->
-            if Definition.relativePath def == existingPath then
-                Array.postfix
-                    [ def
-                    , Definition.fork newPath def
-                    ]
-                    acc
-            else
-                Array.pushLast def acc
-        )
-        []
+    []
+        |> Array.foldr
+                (\def acc ->
+                    if Definition.relativePath def == existingPath then
+                        Array.postfix
+                            [ def
+                            , Definition.fork newPath def
+                            ]
+                            acc
+                    else
+                        Array.pushLast def acc
+                )
+        |> Bundle.mapCompendium
 
 
 {-| Copy definition properties into the metadata.
 -}
-copyPropsToMetadata : Compendium -> Compendium
+copyPropsToMetadata : Bundle -> Bundle
 copyPropsToMetadata =
-    Array.map Contrib.Definition.copyPropsToMetadata
+    Bundle.mapCompendium (Array.map Contrib.Definition.copyPropsToMetadata)
 
 
 {-| Exclude.
@@ -58,16 +60,21 @@ copyPropsToMetadata =
 Filter out the definitions that have the given `relativePath`.
 
 -}
-exclude : Path File -> Compendium -> Compendium
+exclude : Path File -> Bundle -> Bundle
 exclude path =
-    Array.filter (\def -> Definition.relativePath def /= path)
+    (\def -> Definition.relativePath def /= path)
+        |> Array.filter
+        |> Bundle.mapCompendium
 
 
 {-| Insert additional metadata.
 -}
-insertMetadata : Dict String Json.Value -> Compendium -> Compendium
+insertMetadata : Dict String Json.Value -> Bundle -> Bundle
 insertMetadata additionalMetadata =
-    Array.map (Contrib.Definition.insertMetadata additionalMetadata)
+    additionalMetadata
+        |> Contrib.Definition.insertMetadata
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Permalink.
@@ -79,9 +86,12 @@ It will NOT change definitions that already have the new baseName.
     >>> permalink "index" compendium
 
 -}
-permalink : String -> Compendium -> Compendium
+permalink : String -> Bundle -> Bundle
 permalink newBasename =
-    Array.map (Contrib.Definition.permalink newBasename)
+    newBasename
+        |> Contrib.Definition.permalink
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Rename.
@@ -95,9 +105,12 @@ For example, if you have a definition with the relativePath path `a/b/example.ht
     ..>   compendium
 
 -}
-rename : Path File -> Path File -> Compendium -> Compendium
+rename : Path File -> Path File -> Bundle -> Bundle
 rename oldPath newPath =
-    Array.map (Contrib.Definition.rename oldPath newPath)
+    newPath
+        |> Contrib.Definition.rename oldPath
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Rename extension.
@@ -109,9 +122,12 @@ Example:
     ..> -- now have the extensionName "html"
 
 -}
-renameExtension : String -> String -> Compendium -> Compendium
+renameExtension : String -> String -> Bundle -> Bundle
 renameExtension old new =
-    Array.map (Contrib.Definition.renameExtension old new)
+    new
+        |> Contrib.Definition.renameExtension old
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Render content.
@@ -121,9 +137,12 @@ A renderer is a function with the signature `Definition -> Maybe Bytes`.
 You can use this to render templates, markdown, etc.
 
 -}
-renderContent : (Definition -> Maybe Bytes) -> Compendium -> Compendium
+renderContent : (Definition -> Maybe Bytes) -> Bundle -> Bundle
 renderContent renderer =
-    Array.map (Contrib.Definition.renderContent renderer)
+    renderer
+        |> Contrib.Definition.renderContent
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Replace metadata.
@@ -131,9 +150,11 @@ renderContent renderer =
 Replace the current metadata dictionary with another one.
 
 -}
-replaceMetadata : Dict String Json.Value -> Compendium -> Compendium
+replaceMetadata : Dict String Json.Value -> Bundle -> Bundle
 replaceMetadata dict =
-    Array.map (\def -> { def | metadata = dict })
+    (\def -> { def | metadata = dict })
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Set content.
@@ -141,9 +162,11 @@ replaceMetadata dict =
 Set content directly.
 
 -}
-setContent : Bytes -> Compendium -> Compendium
+setContent : Bytes -> Bundle -> Bundle
 setContent bytes =
-    Array.map (\def -> { def | content = Just bytes })
+    (\def -> { def | content = Just bytes })
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Transform content.
@@ -151,20 +174,24 @@ setContent bytes =
 Alias for `renderContent`.
 
 -}
-transformContent : (Definition -> Maybe Bytes) -> Compendium -> Compendium
+transformContent : (Definition -> Maybe Bytes) -> Bundle -> Bundle
 transformContent =
     renderContent
 
 
 {-| Only keep definitions with the given base name.
 -}
-withBaseName : String -> Compendium -> Compendium
+withBaseName : String -> Bundle -> Bundle
 withBaseName baseName =
-    Array.filter (\def -> def.baseName == Just baseName)
+    (\def -> def.baseName == baseName)
+        |> Array.filter
+        |> Bundle.mapCompendium
 
 
 {-| Only keep definitions with the given extension.
 -}
-withExtension : String -> Compendium -> Compendium
+withExtension : String -> Bundle -> Bundle
 withExtension extension =
-    Array.filter (\def -> def.extensionName == Just extension)
+    (\def -> def.extensionName == Just extension)
+        |> Array.filter
+        |> Bundle.mapCompendium
