@@ -1,6 +1,8 @@
 module Main exposing ( main )
 
 import Bytes exposing ( Bytes )
+import Bytes.Decode
+import Bytes.Encode
 import Shikensu
 import Shikensu.Contrib as Shikensu
 import Shikensu.Definition as Shikensu
@@ -46,4 +48,19 @@ buildDir =
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
 renderMarkdown def =
-    Nothing
+    def.content
+        |> Maybe.andThen
+                (\content ->
+                    content
+                        |> Bytes.width
+                        |> Bytes.Decode.string
+                        |> (\decoder -> Bytes.Decode.decode decoder content)
+                )
+        |> Maybe.map
+                (\_ ->
+                    """
+                    <h1>Markdown Header</h1>
+                    <p>Content</p>
+                    """
+                )
+        |> Maybe.map (Bytes.Encode.string >> Bytes.Encode.encode)
