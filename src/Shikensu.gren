@@ -252,6 +252,14 @@ errorToString error =
                         path
                 ++ "\'"
 
+        PlatformAccessError path FileSystem.AccessErrorNotADirectory ->
+            "Access error, expected a directory at the path \'"
+                ++ Path.toPosix
+                        { absolute = False
+                        }
+                        path
+                ++ "\'"
+
         PlatformUnknownError (FileSystem.UnknownFileSystemError string) ->
             "Unknown file system error: " ++ string
 
@@ -279,7 +287,7 @@ recursiveList focus permission relativePath =
                                 (\entry ->
                                     -- TODO: Add option to also list hidden files
                                     case entry of
-                                        File name ->
+                                        FileSystem.File name ->
                                             if String.startsWith "." name then
                                                 Nothing
                                             else
@@ -288,16 +296,21 @@ recursiveList focus permission relativePath =
                                                     |> Path.file
                                                     |> Path.combine relativePath
                                                     |> Definition.create focus
+                                                    |> Array.singleton
+                                                    |> Task.succeed
+                                                    |> Just
 
-                                        Directory name ->
+                                        FileSystem.Directory name ->
                                             name
                                                 |> Array.singleton
                                                 |> Path.directory
                                                 |> Path.combine relativePath
                                                 |> recursiveList focus permission
+                                                |> Just
 
                                         _ ->
                                             Nothing
                                 )
                         |> Task.sequence
+                        |> Task.map Array.flatten
                 )
