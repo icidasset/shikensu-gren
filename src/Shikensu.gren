@@ -270,50 +270,34 @@ recursiveList focus permission relativePath =
         |> Path.toPosix
                 { absolute = False
                 }
-        |> FileSystem.listDirectoryContent permission
+        |> FileSystem.listDirectory permission
         |> Task.mapError (PlatformAccessError (Path.encapsulate path))
         |> Task.andThen
                 (\listing ->
                     listing
-                        |> Array.filter
-                                (\name ->
+                        |> Array.filterMap
+                                (\entry ->
                                     -- TODO: Add option to also list hidden files
-                                    if String.startsWith "." name then
-                                        False
-                                    else
-                                        True
-                                )
-                        |> Array.map
-                                (\name ->
-                                    name
-                                        |> Array.singleton
-                                        |> Path.directory
-                                        |> Path.combine relativePath
-                                        |> recursiveList focus permission
+                                    case entry of
+                                        File name ->
+                                            if String.startsWith "." name then
+                                                Nothing
+                                            else
+                                                name
+                                                    |> Array.singleton
+                                                    |> Path.file
+                                                    |> Path.combine relativePath
+                                                    |> Definition.create focus
+
+                                        Directory name ->
+                                            name
+                                                |> Array.singleton
+                                                |> Path.directory
+                                                |> Path.combine relativePath
+                                                |> recursiveList focus permission
+
+                                        _ ->
+                                            Nothing
                                 )
                         |> Task.sequence
-                )
-        |> Task.map Array.flatten
-        |> Task.onError
-                (\err ->
-                    -- Because we can't determine easily what is a directory and what is a file,
-                    -- we assume everything is a directory and recover from an access error
-                    -- when it we discover it is a file.
-                    case err of
-                        PlatformAccessError _ (FileSystem.AccessErrorUnknown errMessage) ->
-                            if String.contains "ENOTDIR:" errMessage then
-                                relativePath
-                                    |> Path.unwrap
-                                    |> Path.file
-                                    |> Definition.create focus
-                                    |> Array.singleton
-                                    |> Task.succeed
-                            else
-                                Task.fail err
-
-                        PlatformAccessError _ _ ->
-                            Task.fail err
-
-                        PlatformUnknownError (FileSystem.UnknownFileSystemError message) ->
-                            Task.fail err
                 )
