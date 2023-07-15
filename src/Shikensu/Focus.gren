@@ -1,12 +1,16 @@
-module Shikensu.Focus exposing ( Focus(..), toPath )
+module Shikensu.Focus exposing ( Focus(..), toAbsolutePath )
 
 {-|
 
-@docs Focus, toPath
+@docs Focus, toAbsolutePath
 
 -}
 
+import FileSystem
+import Shikensu.Error exposing ( Error(..) )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
+import Shikensu.Path.Encapsulated as Path.Encapsulated
+import Task exposing ( Task )
 
 
 
@@ -25,14 +29,55 @@ type Focus
 
 
 {-|-}
-toPath : Focus -> Path Directory
-toPath focus =
+toAbsolutePath : FileSystem.Permission -> Focus -> Task Error (Path Directory)
+toAbsolutePath permission focus =
     case focus of
         CurrentDirectory ->
-            Path.directory []
+            getWorkingDirectoryPath permission
 
         Relative path ->
-            path
+            appendToWorkingDirectoryPath permission path
 
         Absolute path ->
-            path
+            Task.succeed path
+
+
+
+-- ㊙️
+
+
+appendToWorkingDirectoryPath : FileSystem.Permission -> Path kind -> Task Error (Path kind)
+appendToWorkingDirectoryPath permission suffix =
+    permission
+        |> getWorkingDirectoryPath
+        |> Task.map (\workingDir -> Path.combine workingDir suffix)
+
+
+getWorkingDirectoryPath : FileSystem.Permission -> Task Error (Path Directory)
+getWorkingDirectoryPath permission =
+    permission
+        |> FileSystem.currentWorkingDirectory
+        |> Task.map
+                (\a ->
+                    if String.endsWith "/" a then
+                        a
+                    else
+                        a ++ "/"
+                )
+        |> Task.map Path.fromPosix
+        |> Task.mapError
+                (\_ ->
+                    PlatformUnknownError
+                        <| FileSystem.UnknownFileSystemError "Never ever have I 🤫"
+                )
+        |> Task.andThen
+                (\encapsulatedPath ->
+                    case Path.Encapsulated.toDirectory encapsulatedPath of
+                        Just dirPath ->
+                            Task.succeed dirPath
+
+                        Nothing ->
+                            FileSystem.AccessErrorNotADirectory
+                                |> PlatformAccessError encapsulatedPath
+                                |> Task.fail
+                )

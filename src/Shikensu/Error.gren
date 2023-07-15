@@ -1,0 +1,66 @@
+module Shikensu.Error exposing ( Error(..), toString )
+
+{-|
+
+@docs Error, toString
+
+-}
+
+import FileSystem
+import Shikensu.Path as Path exposing ( Path, Encapsulated )
+
+
+
+-- 🧩
+
+
+{-|-}
+type Error
+    = PlatformAccessError (Path Encapsulated) FileSystem.AccessError
+    | PlatformUnknownError FileSystem.UnknownFileSystemError
+
+
+
+-- 🛠️
+
+
+{-|-}
+toString : Error -> String
+toString error =
+    case error of
+        PlatformAccessError path FileSystem.AccessErrorNotFound ->
+            "Access error, couldn\'t find path \'"
+                ++ Path.toPosix
+                        { absolute = True
+                        }
+                        path
+                ++ "\'"
+
+        PlatformAccessError path FileSystem.AccessErrorNoAccess ->
+            "Access error, couldn\'t access path \'"
+                ++ Path.toPosix
+                        { absolute = True
+                        }
+                        path
+                ++ "\'"
+
+        PlatformAccessError path (FileSystem.AccessErrorUnknown accessError) ->
+            "Access error, \'"
+                ++ accessError
+                ++ "\' with path \'"
+                ++ Path.toPosix
+                        { absolute = True
+                        }
+                        path
+                ++ "\'"
+
+        PlatformAccessError path FileSystem.AccessErrorNotADirectory ->
+            "Access error, expected a directory at the path \'"
+                ++ Path.toPosix
+                        { absolute = True
+                        }
+                        path
+                ++ "\'"
+
+        PlatformUnknownError (FileSystem.UnknownFileSystemError string) ->
+            "Unknown file system error: " ++ string

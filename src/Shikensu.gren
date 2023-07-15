@@ -1,4 +1,4 @@
-module Shikensu exposing ( Error(..), Program, Task, list, program, read, write, print, errorToString )
+module Shikensu exposing ( Program, Task, list, program, read, write )
 
 {-|
 
@@ -13,11 +13,6 @@ module Shikensu exposing ( Error(..), Program, Task, list, program, read, write,
 @docs read, write
 
 
-# Misc
-
-@docs print, errorToString
-
-
 
 -}
 
@@ -26,6 +21,7 @@ import FileSystem
 import Node.Program as Node
 import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Definition as Definition exposing ( Compendium, Definition )
+import Shikensu.Error exposing ( Error(..) )
 import Shikensu.Focus as Focus exposing ( Focus(..) )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Encapsulated, Directory, File )
 import Task
@@ -33,12 +29,6 @@ import Task
 
 
 -- 🧩
-
-
-{-|-}
-type Error
-    = PlatformAccessError (Path Encapsulated) FileSystem.AccessError
-    | PlatformUnknownError FileSystem.UnknownFileSystemError
 
 
 {-|-}
@@ -64,27 +54,15 @@ for you and initialises the needed permissions.
 -}
 program : (Task -> Task) -> Focus -> Program
 program taskFn focus =
-    Node.define
-        { init =
-            Node.await
-                FileSystem.initialize
-                (\fsPermission ->
-                    Node.startProgram
-                        { model = {}
-                        , command =
-                            focus
-                                |> list fsPermission
-                                |> taskFn
-                                |> Task.attempt (\_ -> {})
-                        }
-                )
-        , update =
-            \_ model ->
-                { model = model
-                , command = Cmd.none
-                }
-        , subscriptions = \_ -> Sub.none
-        }
+    (\fsPermission ->
+        focus
+            |> list fsPermission
+            |> taskFn
+            |> Task.attempt (\_ -> {})
+            |> Node.endWithCmd
+    )
+        |> Node.await FileSystem.initialize
+        |> Node.defineSimple
 
 
 {-| Recursively list a directory.
@@ -113,19 +91,18 @@ read bundle =
     bundle.compendium
         |> Array.map
                 (\def ->
-                    -- TODO: Prefer the absolute path once we have that.
-                    let
-                        path =
-                            def
-                                |> Definition.relativePath
-                                |> Path.combine (Focus.toPath def.focus)
-                    in
-                    path
-                        |> Path.toPosix
-                                { absolute = False
-                                }
-                        |> FileSystem.openForRead bundle.fsPermission
-                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+                    def.focus
+                        |> Focus.toAbsolutePath bundle.fsPermission
+                        |> Task.map (\parentPath -> Path.combine parentPath (Definition.relativePath def))
+                        |> Task.andThen
+                                (\path ->
+                                    path
+                                        |> Path.toPosix
+                                                { absolute = True
+                                                }
+                                        |> FileSystem.openForRead bundle.fsPermission
+                                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+                                )
                         |> Task.andThen
                                 (\handle ->
                                     handle
@@ -157,19 +134,18 @@ write focus bundle =
 
 writeDef : FileSystem.Permission -> Focus -> Definition -> Task.Task Error {}
 writeDef permission focus def =
-    -- TODO: Prefer the absolute path once we have that.
-    let
-        path =
-            def
-                |> Definition.relativePath
-                |> Path.combine (Focus.toPath focus)
-    in
-    path
-        |> Path.toPosix
-                { absolute = False
-                }
-        |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
-        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+    focus
+        |> Focus.toAbsolutePath permission
+        |> Task.map (\parentPath -> Path.combine parentPath (Definition.relativePath def))
+        |> Task.andThen
+                (\path ->
+                    path
+                        |> Path.toPosix
+                                { absolute = True
+                                }
+                        |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
+                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+                )
         |> Task.andThen
                 (\handle ->
                     def.content
@@ -184,15 +160,18 @@ writeDef permission focus def =
         |> Task.onError
                 (\err ->
                     case err of
-                        PlatformAccessError _ FileSystem.AccessErrorNotFound ->
+                        PlatformAccessError path FileSystem.AccessErrorNotFound ->
                             -- Make sure directory tree exists
                             let
                                 directoryPath =
-                                    Path.map (Array.dropLast 1) path
+                                    path
+                                        |> Path.unwrap
+                                        |> Array.dropLast 1
+                                        |> Path.directory
 
                                 directoryPathString =
                                     Path.toPosix
-                                        { absolute = False
+                                        { absolute = True
                                         }
                                         directoryPath
                             in
@@ -219,67 +198,23 @@ print task =
 
 
 
--- ERRORS
-
-
-{-|-}
-errorToString : Error -> String
-errorToString error =
-    case error of
-        PlatformAccessError path FileSystem.AccessErrorNotFound ->
-            "Access error, couldn\'t find path \'"
-                ++ Path.toPosix
-                        { absolute = False
-                        }
-                        path
-                ++ "\'"
-
-        PlatformAccessError path FileSystem.AccessErrorNoAccess ->
-            "Access error, couldn\'t access path \'"
-                ++ Path.toPosix
-                        { absolute = False
-                        }
-                        path
-                ++ "\'"
-
-        PlatformAccessError path (FileSystem.AccessErrorUnknown accessError) ->
-            "Access error, \'"
-                ++ accessError
-                ++ "\' with path \'"
-                ++ Path.toPosix
-                        { absolute = False
-                        }
-                        path
-                ++ "\'"
-
-        PlatformAccessError path FileSystem.AccessErrorNotADirectory ->
-            "Access error, expected a directory at the path \'"
-                ++ Path.toPosix
-                        { absolute = False
-                        }
-                        path
-                ++ "\'"
-
-        PlatformUnknownError (FileSystem.UnknownFileSystemError string) ->
-            "Unknown file system error: " ++ string
-
-
-
 -- ㊙️
 
 
 recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task.Task Error Compendium
 recursiveList focus permission relativePath =
-    let
-        path =
-            Path.combine (Focus.toPath focus) relativePath
-    in
-    path
-        |> Path.toPosix
-                { absolute = False
-                }
-        |> FileSystem.listDirectory permission
-        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+    focus
+        |> Focus.toAbsolutePath permission
+        |> Task.map (\parentPath -> Path.combine parentPath relativePath)
+        |> Task.andThen
+                (\path ->
+                    path
+                        |> Path.toPosix
+                                { absolute = True
+                                }
+                        |> FileSystem.listDirectory permission
+                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+                )
         |> Task.andThen
                 (\listing ->
                     listing
