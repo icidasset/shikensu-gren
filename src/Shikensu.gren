@@ -5,7 +5,7 @@ module Shikensu exposing ( Program, Task, list, program, read, write )
 
 # 🚀
 
-@docs program, Program, list, Task, Error
+@docs program, Program, list, Task
 
 
 # IO
