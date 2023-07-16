@@ -1,4 +1,4 @@
-module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), directory, length, file, fromPosix, toPosix, encapsulate, combine, kind, map, unwrap )
+module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), currentWorkingDirectory, directory, length, file, fromPosix, toPosix, encapsulate, combine, kind, map, unwrap )
 
 {-|
 
@@ -10,7 +10,7 @@ module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), d
 
 # Creation
 
-@docs directory, file
+@docs directory, file, currentWorkingDirectory
 
 
 # POSIX
@@ -29,6 +29,8 @@ module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), d
 
 -}
 
+import FileSystem
+import Task exposing ( Task )
 
 
 {-| Path type.
@@ -89,6 +91,22 @@ directory =
 file : Array String -> Path File
 file =
     Path File
+
+
+{-| Get the directory path of the current working directory.
+-}
+currentWorkingDirectory : FileSystem.Permission -> Task Never (Path Directory)
+currentWorkingDirectory permission =
+    permission
+        |> FileSystem.currentWorkingDirectory
+        |> Task.map
+                (\a ->
+                    if String.endsWith "/" a then
+                        a
+                    else
+                        a ++ "/"
+                )
+        |> Task.map (fromPosix >> unwrap >> directory)
 
 
 

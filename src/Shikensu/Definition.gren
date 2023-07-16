@@ -20,14 +20,13 @@ import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 {-| A piece of content.
 
 Example definition, given:
-* The working directory root path `/Users/icidasset/Projects/shikensu/example/` (the focus)
+* The working directory root path `/Users/icidasset/Projects/shikensu/example/`
 * The full item path `/Users/icidasset/Projects/shikensu/example/test/hello.md`
 
     { baseName = "hello"
     , content = Nothing
     , directoryPath = Path.directory [ "test" ]
     , extensionName = Just "md"
-    , focus = CurrentDirectory -- Could also be "relative" or "absolute"
     , metadata = Dict.empty
     }
 
@@ -37,7 +36,6 @@ type alias Definition =
     , content : Maybe Bytes
     , directoryPath : Path Directory
     , extensionName : Maybe String
-    , focus : Focus
     , metadata : Dict String Json.Value
     }
 
@@ -68,8 +66,8 @@ relativePath def =
 
 {-| Create a definition.
 -}
-create : Focus -> Path File -> Definition
-create focus relPath =
+create : Path File -> Definition
+create relPath =
     let
         name =
             relPath
@@ -81,7 +79,6 @@ create focus relPath =
     , content = Nothing
     , directoryPath = directoryPath relPath
     , extensionName = extensionName name
-    , focus = focus
     , metadata = Dict.empty
     }
 
@@ -101,7 +98,6 @@ fork relPath def =
     , content = def.content
     , directoryPath = directoryPath relPath
     , extensionName = extensionName name
-    , focus = def.focus
     , metadata = def.metadata
     }
 

@@ -1,5 +1,7 @@
 module Main exposing ( main )
 
+{-|-}
+
 import Bytes exposing ( Bytes )
 import Bytes.Decode
 import Bytes.Encode
@@ -7,48 +9,91 @@ import Shikensu
 import Shikensu.Contrib as Shikensu
 import Shikensu.Definition as Shikensu
 import Shikensu.Focus as Shikensu exposing ( Focus(..) )
+import Shikensu.Focus
 import Shikensu.Path as Path
 import Task
 
 
 main : Shikensu.Program
 main =
-    let
-        _ =
-            Debug.log "🚀" ""
-    in
+    -- 🚀
+    Shikensu.program sequence source
+
+
+{-| Which directory are we working with? -}
+source : Shikensu.Focus
+source =
     [ "content"
     ]
         |> Path.directory
         |> Relative
-        |> Shikensu.program sequence
 
 
-sequence : Shikensu.Task -> Shikensu.Task
-sequence =
-    Task.map (Shikensu.withExtension "md")
-        >> Task.andThen Shikensu.read
-        >> Task.map
-                (\bundle ->
-                    bundle
-                        |> Shikensu.permalink "index"
-                        |> Shikensu.renameExtension "md" "html"
-                        |> Shikensu.renderContent renderMarkdown
-                )
-        >> Task.andThen (Shikensu.write buildDir)
-        >> Task.map (Debug.log "🛳️  Bundle successfully written")
-
-
-buildDir : Shikensu.Focus
-buildDir =
+{-| Optional, the destination of the output we'll be producing.
+-}
+destination : Shikensu.Focus
+destination =
     [ "build"
     ]
         |> Path.directory
         |> Relative
 
 
+{-| A sequence of operations.
+
+This is just an example of what you can do. Shikensu basically revolves
+around `Definition`s, every file found in the tree is made into a `Definition`.
+These contain various parts of the path, the content, metadata, etc.
+You can manipulate that until you are happy with the resulting tree,
+and then write it to disk.
+
+1. List all markdown files
+2. Read the contents of said files
+3. Rename extension from `md` to `html`
+4. Permalink the paths (eg. `post.html` becomes `post/index.html`)
+5. Render the markdown
+6. Write the output to the destination directory
+
+-}
+sequence : Shikensu.Task -> Shikensu.Task
+sequence =
+    identity
+        >> Task.map (Shikensu.withExtension "md")
+        >> Task.andThen Shikensu.read
+        >> Task.map
+                (\bundle ->
+                    bundle
+                        |> Shikensu.renameExtension "md" "html"
+                        |> Shikensu.permalink "index"
+                        |> Shikensu.renderContent renderMarkdown
+                )
+        >> Task.andThen (Shikensu.write destination)
+        -- --------
+        -- Optional
+        -- --------
+        -- Debug output: destination path + bundle
+        >> Task.map
+                (\bundle ->
+                    destination
+                        |> Shikensu.Focus.toAbsolutePath
+                                { cwd = bundle.workingDirectory
+                                }
+                        |> Path.toPosix
+                                { absolute = True
+                                }
+                        |> String.append "🛳️  Bundle successfully written to "
+                        |> Debug.log
+                        |> (\debug -> debug bundle)
+                )
+
+
+
+-- RENDERERS
+
+
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
 renderMarkdown def =
+    -- TODO: Once there's a markdown parser/renderer written in Gren use it here.
     def.content
         |> Maybe.andThen
                 (\content ->

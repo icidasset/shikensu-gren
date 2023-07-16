@@ -69,14 +69,29 @@ program taskFn focus =
 -}
 list : FileSystem.Permission -> Focus -> Task
 list fsPermission focus =
-    []
-        |> Path.directory
-        |> recursiveList focus fsPermission
-        |> Task.map
-                (\compendium ->
-                    { fsPermission = fsPermission
-                    , compendium = compendium
-                    }
+    fsPermission
+        |> Path.currentWorkingDirectory
+        |> Task.mapError neverError
+        |> Task.andThen
+                (\cwd ->
+                    let
+                        focusDirectory =
+                            Focus.toAbsolutePath
+                                { cwd = cwd
+                                }
+                                focus
+                    in
+                    []
+                        |> Path.directory
+                        |> recursiveList fsPermission focusDirectory
+                        |> Task.map
+                                (\compendium ->
+                                    { compendium = compendium
+                                    , focusDirectory = focusDirectory
+                                    , fsPermission = fsPermission
+                                    , workingDirectory = cwd
+                                    }
+                                )
                 )
 
 
@@ -84,25 +99,25 @@ list fsPermission focus =
 -- IO
 
 
-{-| Read the files in the given compendium/bundle (ie. set the content property in the definition)
+{-| Read the files in the given compendium/bundle,
+setting the `content` property in the definition.
 -}
 read : Bundle -> Task
 read bundle =
     bundle.compendium
         |> Array.map
                 (\def ->
-                    def.focus
-                        |> Focus.toAbsolutePath bundle.fsPermission
-                        |> Task.map (\parentPath -> Path.combine parentPath (Definition.relativePath def))
-                        |> Task.andThen
-                                (\path ->
-                                    path
-                                        |> Path.toPosix
-                                                { absolute = True
-                                                }
-                                        |> FileSystem.openForRead bundle.fsPermission
-                                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
-                                )
+                    def
+                        |> Definition.relativePath
+                        |> Path.combine bundle.focusDirectory
+                        |> (\path ->
+                                path
+                                    |> Path.toPosix
+                                            { absolute = True
+                                            }
+                                    |> FileSystem.openForRead bundle.fsPermission
+                                    |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+                            )
                         |> Task.andThen
                                 (\handle ->
                                     handle
@@ -125,27 +140,32 @@ read bundle =
 {-| Write each definition to their respective location.
 -}
 write : Focus -> Bundle -> Task
-write focus bundle =
-    bundle.compendium
-        |> Array.map (writeDef bundle.fsPermission focus)
-        |> Task.sequence
-        |> Task.map (\_ -> bundle)
+write destinationFocus bundle =
+    destinationFocus
+        |> Focus.toAbsolutePath
+                { cwd = bundle.workingDirectory
+                }
+        |> (\destinationDirectory ->
+                bundle.compendium
+                    |> Array.map (writeDef bundle.fsPermission destinationDirectory)
+                    |> Task.sequence
+                    |> Task.map (\_ -> bundle)
+            )
 
 
-writeDef : FileSystem.Permission -> Focus -> Definition -> Task.Task Error {}
-writeDef permission focus def =
-    focus
-        |> Focus.toAbsolutePath permission
-        |> Task.map (\parentPath -> Path.combine parentPath (Definition.relativePath def))
-        |> Task.andThen
-                (\path ->
-                    path
-                        |> Path.toPosix
-                                { absolute = True
-                                }
-                        |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
-                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
-                )
+writeDef : FileSystem.Permission -> Path Directory -> Definition -> Task.Task Error {}
+writeDef permission destinationDirectory def =
+    def
+        |> Definition.relativePath
+        |> Path.combine destinationDirectory
+        |> (\path ->
+                path
+                    |> Path.toPosix
+                            { absolute = True
+                            }
+                    |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
+                    |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+            )
         |> Task.andThen
                 (\handle ->
                     def.content
@@ -179,7 +199,7 @@ writeDef permission focus def =
                             }
                                 |> FileSystem.makeDirectory permission directoryPathString
                                 |> Task.mapError (PlatformAccessError (Path.encapsulate directoryPath))
-                                |> Task.andThen (\_ -> writeDef permission focus def)
+                                |> Task.andThen (\_ -> writeDef permission destinationDirectory def)
 
                         _ ->
                             Task.fail err
@@ -187,34 +207,26 @@ writeDef permission focus def =
 
 
 
--- TERMINAL
-
-
-{-|-}
-print : Task -> Task
-print task =
-    -- TODO
-    task
-
-
-
 -- ㊙️
 
 
-recursiveList : Focus -> FileSystem.Permission -> Path Directory -> Task.Task Error Compendium
-recursiveList focus permission relativePath =
-    focus
-        |> Focus.toAbsolutePath permission
-        |> Task.map (\parentPath -> Path.combine parentPath relativePath)
-        |> Task.andThen
-                (\path ->
-                    path
-                        |> Path.toPosix
-                                { absolute = True
-                                }
-                        |> FileSystem.listDirectory permission
-                        |> Task.mapError (PlatformAccessError (Path.encapsulate path))
-                )
+neverError : Never -> Error
+neverError _ =
+    PlatformUnknownError (FileSystem.UnknownFileSystemError "Never ever have I 🤫")
+
+
+recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task.Task Error Compendium
+recursiveList permission focusDirectory relativePath =
+    relativePath
+        |> Path.combine focusDirectory
+        |> (\path ->
+                path
+                    |> Path.toPosix
+                            { absolute = True
+                            }
+                    |> FileSystem.listDirectory permission
+                    |> Task.mapError (PlatformAccessError (Path.encapsulate path))
+            )
         |> Task.andThen
                 (\listing ->
                     listing
@@ -230,7 +242,7 @@ recursiveList focus permission relativePath =
                                                     |> Array.singleton
                                                     |> Path.file
                                                     |> Path.combine relativePath
-                                                    |> Definition.create focus
+                                                    |> Definition.create
                                                     |> Array.singleton
                                                     |> Task.succeed
                                                     |> Just
@@ -240,7 +252,7 @@ recursiveList focus permission relativePath =
                                                 |> Array.singleton
                                                 |> Path.directory
                                                 |> Path.combine relativePath
-                                                |> recursiveList focus permission
+                                                |> recursiveList permission focusDirectory
                                                 |> Just
 
                                         _ ->

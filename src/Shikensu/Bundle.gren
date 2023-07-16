@@ -8,6 +8,7 @@ module Shikensu.Bundle exposing ( Bundle, mapCompendium )
 
 import FileSystem
 import Shikensu.Definition exposing ( Compendium )
+import Shikensu.Path exposing ( Path, Directory )
 
 
 
@@ -15,8 +16,14 @@ import Shikensu.Definition exposing ( Compendium )
 
 
 type alias Bundle =
-    { fsPermission : FileSystem.Permission
-    , compendium : Compendium
+    { compendium :
+        Compendium
+            -- 
+            -- Context:
+            -- 
+    , fsPermission : FileSystem.Permission
+    , focusDirectory : Path Directory -- The absolute path of the resolved `focus` given as a param to the `list` function
+    , workingDirectory : Path Directory -- The current working directory of the program (resolved via gren-lang/node package)
     }
 
 

@@ -20,40 +20,33 @@ import Task
 
 main : Shikensu.Program
 main =
-    [ ".."
-    , "example"
-    , "content"
-    ]
-        |> Path.directory
-        |> Relative
-        |> Shikensu.program sequence
+    -- 🚀
+    Shikensu.program sequence CurrentDirectory
+
+
+{-| Optional, the destination of the output we'll be producing.
+-}
+destination : Shikensu.Focus
+destination =
+    Relative (Path.directory [ "build" ])
 
 
 sequence : Shikensu.Task -> Shikensu.Task
 sequence =
-    Task.map (Shikensu.withExtension "md")
+    identity
+        >> Task.map (Shikensu.withExtension "md")
         >> Task.andThen Shikensu.read
         >> Task.map
                 (\bundle ->
                     bundle
-                        |> Shikensu.permalink "index"
                         |> Shikensu.renameExtension "md" "html"
+                        |> Shikensu.permalink "index"
                         |> Shikensu.renderContent renderMarkdown
                 )
-        >> Task.andThen (Shikensu.write buildDir)
-
-
-buildDir : Shikensu.Focus
-buildDir =
-    [ ".."
-    , "example"
-    , "build"
-    ]
-        |> Path.directory
-        |> Relative
+        >> Task.andThen (Shikensu.write destination)
 
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
 renderMarkdown def =
-    Nothing
+    Maybe.map renderMarkdownBytes def.content
 ```
