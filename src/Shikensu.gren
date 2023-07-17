@@ -1,18 +1,15 @@
-module Shikensu exposing ( Program, Task, list, program, read, write )
+module Shikensu exposing ( Program, Task, list, program, programs, read, write )
 
 {-|
 
-
 # 🚀
 
-@docs program, Program, list, Task
+@docs program, programs, Program, list, Task
 
 
 # IO
 
 @docs read, write
-
-
 
 -}
 
@@ -20,7 +17,7 @@ import Bytes.Encode
 import FileSystem
 import Node.Program as Node
 import Shikensu.Bundle as Bundle exposing ( Bundle )
-import Shikensu.Definition as Definition exposing ( Compendium, Definition )
+import Shikensu.Definition as Definition exposing ( Definition )
 import Shikensu.Error exposing ( Error(..) )
 import Shikensu.Focus as Focus exposing ( Focus(..) )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Encapsulated, Directory, File )
@@ -31,12 +28,13 @@ import Task
 -- 🧩
 
 
-{-|-}
+{-| Alias for a Node program.
+-}
 type alias Program =
     Node.Program {} {}
 
 
-{-| Simple alias for working with tasks dealing with bundles.
+{-| Alias for the main `Task` type we'll be working with here.
 -}
 type alias Task =
     Task.Task Error Bundle
@@ -51,13 +49,65 @@ type alias Task =
 This is basically a wrapper around `list` that creates a Program
 for you and initialises the needed permissions.
 
+    import Shikensu
+    import Shikensu.Contrib as Shikensu
+    import Shikensu.Focus exposing (Focus(..))
+    import Task
+
+    Shikensu.program sequence CurrentDirectory
+
+    sequence task =
+        task
+            |> Task.map (Shikensu.withExtension "md")
+            |> Task.andThen Shikensu.read
+            |> Task.map (Shikensu.renderContent markdownRenderer) -- See `example` folder
+            |> Task.andThen (Shikensu.write destinationFocus)
+
+
 -}
 program : (Task -> Task) -> Focus -> Program
-program taskFn focus =
+program sequence focus =
+    programs
+        [ { focus = focus
+          , sequence = sequence
+          }
+        ]
+
+
+{-| Provides a way to make and operate on multiple lists.
+
+Technically not multiple programs, but same idea as
+the `program` function, just with multiple lists.
+
+    import Shikensu
+    import Shikensu.Focus exposing (Focus(..))
+
+    Shikensu.programs
+        [ { focus = Relative (Path.directory [ "posts" ])
+          , sequence = Task.andThen Shikensu.read
+          }
+        , { focus = Relative (Path.directory [ "images" ])
+          , sequence = Task.map (\bundle -> ...)
+          }
+        ]
+
+-}
+programs :
+    Array
+        { focus : Focus
+        , sequence : Task -> Task
+        }
+    -> Program
+programs collection =
     (\fsPermission ->
-        focus
-            |> list fsPermission
-            |> taskFn
+        collection
+            |> Array.map
+                    (\{ focus, sequence } ->
+                        focus
+                            |> list fsPermission
+                            |> sequence
+                    )
+            |> Task.sequence
             |> Task.attempt (\_ -> {})
             |> Node.endWithCmd
     )
@@ -65,7 +115,27 @@ program taskFn focus =
         |> Node.defineSimple
 
 
-{-| Recursively list a directory.
+{-| The `list` function itself, unwrapped.
+
+Recursively lists a directory and then gives you a `Task`
+containing a `Bundle` which in turns has an array of `Definition`s
+stored under the property named `compendium`.
+
+This collection of `Definition`s is the main thing you'll be working with.
+The goal of this library is to scan a file tree, manipulate it and then
+optionally write it back to disk. This is done through these definitions.
+
+    import Shikensu
+    import Shikensu.Focus exposing (Focus(..))
+
+    Shikensu.list fsPermission CurrentDirectory
+
+⚠️ The given `Focus` will always be in the context of
+the environment of the resulting Gren binary that is being executed.
+So for example, say your `pwd` command returns `~/code/shikensu/`,
+and your focus is `Relative (Path.Directory [ "..", "example" ])`.
+If you run `./binary/app` the resulting path will be `~/code/example/`.
+
 -}
 list : FileSystem.Permission -> Focus -> Task
 list fsPermission focus =
@@ -138,6 +208,7 @@ read bundle =
 
 
 {-| Write each definition to their respective location.
+The location will depend on the focus and the environment it was run in.
 -}
 write : Focus -> Bundle -> Task
 write destinationFocus bundle =
@@ -215,7 +286,7 @@ neverError _ =
     PlatformUnknownError (FileSystem.UnknownFileSystemError "Never ever have I 🤫")
 
 
-recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task.Task Error Compendium
+recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task.Task Error (Array Definition)
 recursiveList permission focusDirectory relativePath =
     relativePath
         |> Path.combine focusDirectory

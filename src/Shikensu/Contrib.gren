@@ -1,8 +1,13 @@
-module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withExtension )
+module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata )
 
 {-|
 
-@docs clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withExtension
+Premade functions to manipulate your bundles/definitions with.
+
+
+# Contrib
+
+@docs clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata
 
 -}
 
@@ -11,7 +16,7 @@ import Dict exposing ( Dict )
 import Json.Encode as Json
 import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Contrib.Definition as Contrib.Definition
-import Shikensu.Definition as Definition exposing ( Definition, Compendium )
+import Shikensu.Definition as Definition exposing ( Definition )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
@@ -188,10 +193,28 @@ withBaseName baseName =
         |> Bundle.mapCompendium
 
 
+{-| Only keep definitions with the given directory path.
+-}
+withDirectory : Path Directory -> Bundle -> Bundle
+withDirectory directoryPath =
+    (\def -> def.directoryPath == directoryPath)
+        |> Array.filter
+        |> Bundle.mapCompendium
+
+
 {-| Only keep definitions with the given extension.
 -}
 withExtension : String -> Bundle -> Bundle
 withExtension extension =
     (\def -> def.extensionName == Just extension)
+        |> Array.filter
+        |> Bundle.mapCompendium
+
+
+{-| Only keep definitions with the given metadata.
+-}
+withMetadata : String -> Json.Value -> Bundle -> Bundle
+withMetadata key value =
+    (\def -> Dict.get key def.metadata == Just value)
         |> Array.filter
         |> Bundle.mapCompendium

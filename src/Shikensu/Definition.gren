@@ -1,8 +1,10 @@
-module Shikensu.Definition exposing ( Compendium, Definition, create, fork, relativePath )
+module Shikensu.Definition exposing ( Definition, create, fork, relativePath )
 
 {-|
 
-@docs Definition, Compendium, create, fork, relativePath
+# Definition
+
+@docs Definition, create, fork, relativePath
 
 -}
 
@@ -17,11 +19,11 @@ import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 -- 🧩
 
 
-{-| A piece of content.
+{-| **A piece of content.**
 
 Example definition, given:
-* The working directory root path `/Users/icidasset/Projects/shikensu/example/`
-* The full item path `/Users/icidasset/Projects/shikensu/example/test/hello.md`
+The working directory root path `/Users/icidasset/Projects/shikensu/example/`
+and the full item path `/Users/icidasset/Projects/shikensu/example/test/hello.md`
 
     { baseName = "hello"
     , content = Nothing
@@ -38,12 +40,6 @@ type alias Definition =
     , extensionName : Maybe String
     , metadata : Dict String Json.Value
     }
-
-
-{-| A collection of `Definition`s.
--}
-type alias Compendium =
-    Array Definition
 
 
 
@@ -64,7 +60,7 @@ relativePath def =
 -- 🛠
 
 
-{-| Create a definition.
+{-| Create a definition, given a relative path.
 -}
 create : Path File -> Definition
 create relPath =
@@ -83,7 +79,8 @@ create relPath =
     }
 
 
-{-| Fork a definition.
+{-| Fork a definition, given a relative path.
+Taking the metadata and content of the original definition.
 -}
 fork : Path File -> Definition -> Definition
 fork relPath def =

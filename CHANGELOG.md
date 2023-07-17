@@ -1,0 +1,9 @@
+# Changelog
+
+## 2.0.0
+
+* Added `Sikensu.programs`
+* Added missing headers so docs render properly
+* Removed confusing `Compendium` type alias
+* Forgot to export the Error module
+* Forgot to export various functions

@@ -2,7 +2,6 @@ module Shikensu.Path exposing ( Path, Directory, File, Encapsulated, Kind(..), c
 
 {-|
 
-
 # Paths
 
 @docs Path, Directory, File, Encapsulated, Kind
@@ -78,7 +77,9 @@ type Encapsulated
 
 
 {-| Create a directory path.
+
     directory [ "Audio", "Playlists" ]
+
 -}
 directory : Array String -> Path Directory
 directory =
@@ -86,14 +87,16 @@ directory =
 
 
 {-| Create a file path.
+
     file [ "Document", "invoice.pdf" ]
+
 -}
 file : Array String -> Path File
 file =
     Path File
 
 
-{-| Get the directory path of the current working directory.
+{-| Get the absolute directory path of the current working directory.
 -}
 currentWorkingDirectory : FileSystem.Permission -> Task Never (Path Directory)
 currentWorkingDirectory permission =
@@ -116,15 +119,15 @@ currentWorkingDirectory permission =
 {-| Convert a POSIX formatted string to a path.
 This will return a `Encapsulated` path. To get a path of the type `Path Directory` or `Path File`, use the functions in the `Webnative.Path.Encapsulated` module.
 
-    >>> import Webnative.Path.Encapsulated
+    >>> import Shikensu.Path.Encapsulated
     >>> "foo/bar/"
     ..>   |> fromPosix
-    ..>   |> Webnative.Path.Encapsulated.toDirectory
+    ..>   |> Shikensu.Path.Encapsulated.toDirectory
     Just (directory [ "foo", "bar" ])
 
     >>> "foo/bar"
     ..>   |> fromPosix
-    ..>   |> Webnative.Path.Encapsulated.toFile
+    ..>   |> Shikensu.Path.Encapsulated.toFile
     Just (file [ "foo", "bar" ])
 
 -}

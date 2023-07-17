@@ -2,12 +2,14 @@ module Shikensu.Bundle exposing ( Bundle, mapCompendium )
 
 {-|
 
+# Bundle
+
 @docs Bundle, mapCompendium
 
 -}
 
 import FileSystem
-import Shikensu.Definition exposing ( Compendium )
+import Shikensu.Definition exposing ( Definition )
 import Shikensu.Path exposing ( Path, Directory )
 
 
@@ -15,9 +17,15 @@ import Shikensu.Path exposing ( Path, Directory )
 -- 🧩
 
 
+{-| The bundle which is the value of the `Shikensu.Task` type.
+
+Most important part here is the `compendium`, the list of definitions.
+The rest is contextual information.
+
+-}
 type alias Bundle =
     { compendium :
-        Compendium
+        Array Definition
             -- 
             -- Context:
             -- 
@@ -31,6 +39,8 @@ type alias Bundle =
 -- 🛠
 
 
-mapCompendium : (Compendium -> Compendium) -> Bundle -> Bundle
+{-| Convenience function to map over array of `Definition`s.
+-}
+mapCompendium : (Array Definition -> Array Definition) -> Bundle -> Bundle
 mapCompendium fn bundle =
     { bundle | compendium = fn bundle.compendium }

@@ -2,6 +2,8 @@ module Shikensu.Focus exposing ( Focus(..), toAbsolutePath )
 
 {-|
 
+# Focus
+
 @docs Focus, toAbsolutePath
 
 -}

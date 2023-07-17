@@ -24,26 +24,24 @@ main =
     Shikensu.program sequence CurrentDirectory
 
 
-{-| Optional, the destination of the output we'll be producing.
--}
-destination : Shikensu.Focus
-destination =
-    Relative (Path.directory [ "build" ])
-
-
 sequence : Shikensu.Task -> Shikensu.Task
-sequence =
-    identity
-        >> Task.map (Shikensu.withExtension "md")
-        >> Task.andThen Shikensu.read
-        >> Task.map
+sequence task =
+    task
+        |> Task.map (Shikensu.withExtension "md")
+        |> Task.andThen Shikensu.read
+        |> Task.map
                 (\bundle ->
                     bundle
                         |> Shikensu.renameExtension "md" "html"
                         |> Shikensu.permalink "index"
                         |> Shikensu.renderContent renderMarkdown
                 )
-        >> Task.andThen (Shikensu.write destination)
+        |> Task.andThen (Shikensu.write destination)
+
+
+destination : Shikensu.Focus
+destination =
+    Relative (Path.directory [ "build" ])
 
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
