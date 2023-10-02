@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.1
+
+Bump version range of `gren-lang/node`.
+
 ## 2.0.0
 
 * Added `Sikensu.programs`
