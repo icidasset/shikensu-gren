@@ -1,15 +1,15 @@
-module Shikensu exposing ( Program, Task, list, program, programs, read, write )
+module Shikensu exposing ( Program, Task, list, perform, program, programs, read, write, writeDefinition )
 
 {-|
 
 # 🚀
 
-@docs program, programs, Program, list, Task
+@docs program, programs, Program, list, perform, Task
 
 
 # IO
 
-@docs read, write
+@docs read, write, writeDefinition
 
 -}
 
@@ -48,8 +48,8 @@ type alias Task =
 
 {-| Create a Shikensu Program.
 
-This is basically a wrapper around `list` and `FileSystem.initialize`
-that creates a Program for you and initialises the needed permissions.
+This is basically a wrapper around `list` and `perform`
+that creates a SimpleProgram for you and initialises the needed permissions.
 
 It also prints errors to stderr or a success message to stdout.
 
@@ -103,8 +103,11 @@ programs :
         }
     -> Program
 programs collection =
-    let
-        withContext env fsPermission =
+    perform
+        { onSuccess = \env _ -> Stream.sendLine env.stdout "🧪 Sequence completed"
+        , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
+        }
+        (\fsPermission ->
             collection
                 |> Array.map
                         (\{ focus, sequence } ->
@@ -113,23 +116,7 @@ programs collection =
                                 |> sequence
                         )
                 |> Task.sequence
-                |> Task.andThen
-                        (\_ ->
-                            "🧪 Sequence completed"
-                                |> Stream.sendLine env.stdout
-                                |> Task.succeed
-                        )
-                |> Task.onError
-                        (\err ->
-                            err
-                                |> Error.toString
-                                |> String.append "🚨 "
-                                |> Stream.sendLine env.stderr
-                                |> Task.succeed
-                        )
-                |> (\task -> Init.awaitTask task Node.endWithCmd)
-    in
-    Node.defineSimpleProgram (withContext >> Init.await FileSystem.initialize)
+        )
 
 
 {-| The `list` function itself, unwrapped.
@@ -145,24 +132,16 @@ optionally write it back to disk. This is done through these definitions.
     import Shikensu
     import Shikensu.Focus exposing (Focus(..))
 
-    Node.defineSimpleProgram
-      (\_ ->
-        Init.await
-          FileSystem.initialize
-          (\fsPermission ->
+    Shikensu.perform
+        -- To ignore, return `Cmd.none`
+        { onSuccess = \env _ -> Stream.sendLine env.stdout "🧪 Sequence completed"
+        , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
+        }
+        (\fsPermission ->
             CurrentDirectory
-              |> Shikensu.list fsPermission
-              |> Task.map (Shikensu.withExtension "md")
-              |> ...
-              -- When creating a `SimpleProgram` we need to return a `Init.Task`
-              -- This requires us to use `Init.awaitTask` which expects a task of the type `Task Never a`
-              -- This is different from Shikensu's Task type, which is `Task Error a`
-              -- So ideally you do some error handling here, or just ignore it.
-              |> Task.andThen (\_ -> Task.succeed Cmd.none)
-              |> Task.onError (\_ -> Task.succeed Cmd.none)
-              |> (\task -> Init.awaitTask task Node.endWithCmd)
-          )
-      )
+                |> Shikensu.list fsPermission
+                |> Task.map (Shikensu.withExtension "md")
+        )
 
 ⚠️ The given `Focus` will always be in the context of
 the environment of the resulting Gren binary that is being executed.
@@ -197,6 +176,35 @@ list fsPermission focus =
                                     }
                                 )
                 )
+
+
+{-| A utility function that helps you create programs.
+
+This uses `Node.defineSimpleProgram` and `FileSystem.initialize` underneath
+and then manages the `Shikensu.Task` value created by `list` or some other function.
+
+See the `list` function above for an example.
+
+-}
+perform :
+    { onSuccess : Node.Environment -> a -> Cmd {}
+    , onError : Node.Environment -> Error -> Cmd {}
+    }
+    -> (FileSystem.Permission -> Task.Task Error a)
+    -> Program
+perform errorHandling taskCreator =
+    Node.defineSimpleProgram
+        (\env ->
+            Init.await
+                FileSystem.initialize
+                (\fsPermission ->
+                    fsPermission
+                        |> taskCreator
+                        |> Task.andThen (errorHandling.onSuccess env >> Task.succeed)
+                        |> Task.onError (errorHandling.onError env >> Task.succeed)
+                        |> (\t -> Init.awaitTask t Node.endWithCmd)
+                )
+        )
 
 
 
@@ -252,14 +260,21 @@ write destinationFocus bundle =
                 }
         |> (\destinationDirectory ->
                 bundle.compendium
-                    |> Array.map (writeDef bundle.fsPermission destinationDirectory)
+                    |> Array.map (writeDefinition bundle.fsPermission destinationDirectory)
                     |> Task.sequence
                     |> Task.map (\_ -> bundle)
             )
 
 
-writeDef : FileSystem.Permission -> Path Directory -> Definition -> Task.Task Error {}
-writeDef permission destinationDirectory def =
+{-| ⚠️ You most likely want to use `write` instead. This function is used internally by `write` but is exposed for special use cases.
+
+Write a definition to its respective location.
+The location will depend on the given directory path and the environment it was run in.
+The given directory path must be an absolute path!
+
+-}
+writeDefinition : FileSystem.Permission -> Path Directory -> Definition -> Task.Task Error {}
+writeDefinition permission destinationDirectory def =
     def
         |> Definition.relativePath
         |> Path.combine destinationDirectory
@@ -304,7 +319,7 @@ writeDef permission destinationDirectory def =
                             }
                                 |> FileSystem.makeDirectory permission directoryPathString
                                 |> Task.mapError (PlatformAccessError (Path.encapsulate directoryPath))
-                                |> Task.andThen (\_ -> writeDef permission destinationDirectory def)
+                                |> Task.andThen (\_ -> writeDefinition permission destinationDirectory def)
 
                         _ ->
                             Task.fail err
@@ -317,7 +332,7 @@ writeDef permission destinationDirectory def =
 
 neverError : Never -> Error
 neverError _ =
-    PlatformUnknownError (FileSystem.UnknownFileSystemError "Never ever have I 🤫")
+    ErrorMessage "Never ever have I 🤫"
 
 
 recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task.Task Error (Array Definition)

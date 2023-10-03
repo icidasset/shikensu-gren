@@ -18,7 +18,8 @@ import Shikensu.Path as Path exposing ( Path, Encapsulated )
 
 {-|-}
 type Error
-    = PlatformAccessError (Path Encapsulated) FileSystem.AccessError
+    = ErrorMessage String
+    | PlatformAccessError (Path Encapsulated) FileSystem.AccessError
     | PlatformUnknownError FileSystem.UnknownFileSystemError
 
 
@@ -30,6 +31,9 @@ type Error
 toString : Error -> String
 toString error =
     case error of
+        ErrorMessage message ->
+            message
+
         PlatformAccessError path FileSystem.AccessErrorNotFound ->
             "Access error, couldn\'t find path \'"
                 ++ Path.toPosix
