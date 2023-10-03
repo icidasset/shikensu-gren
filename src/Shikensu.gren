@@ -1,15 +1,20 @@
-module Shikensu exposing ( Program, Task, list, perform, program, programs, read, write, writeDefinition )
+module Shikensu exposing ( Program, Task, currentWorkingDirectory, list, perform, program, programs, read, write, writeDefinition )
 
 {-|
 
 # 🚀
 
-@docs program, programs, Program, list, perform, Task
+@docs program, programs, Program, Task, list, perform
 
 
 # IO
 
 @docs read, write, writeDefinition
+
+
+# 🛠️
+
+@docs currentWorkingDirectory
 
 -}
 
@@ -153,8 +158,7 @@ If you run `./binary/app` the resulting path will be `~/code/example/`.
 list : FileSystem.Permission -> Focus -> Task
 list fsPermission focus =
     fsPermission
-        |> Path.currentWorkingDirectory
-        |> Task.mapError neverError
+        |> currentWorkingDirectory
         |> Task.andThen
                 (\cwd ->
                     let
@@ -327,12 +331,28 @@ writeDefinition permission destinationDirectory def =
 
 
 
+-- 🛠️
+
+
+{-| Get the absolute directory path of the current working directory.
+-}
+currentWorkingDirectory : FileSystem.Permission -> Task.Task Error (Path Directory)
+currentWorkingDirectory permission =
+    permission
+        |> FileSystem.currentWorkingDirectory
+        |> Task.map
+                (\a ->
+                    if String.endsWith "/" a then
+                        a
+                    else
+                        a ++ "/"
+                )
+        |> Task.map (Path.fromPosix >> Path.unwrap >> Path.directory)
+        |> Task.mapError (\_ -> ErrorMessage "Never ever have I 🤫")
+
+
+
 -- ㊙️
-
-
-neverError : Never -> Error
-neverError _ =
-    ErrorMessage "Never ever have I 🤫"
 
 
 recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task.Task Error (Array Definition)

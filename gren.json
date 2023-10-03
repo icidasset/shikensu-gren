@@ -4,7 +4,7 @@
     "name": "icidasset/shikensu-gren",
     "summary": "Run a sequence of functions on in-memory representations of files",
     "license": "BSD-3-Clause",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "exposed-modules": [
         "Shikensu",
         "Shikensu.Bundle",
