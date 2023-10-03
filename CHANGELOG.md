@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.0.2
+
+Upgrade to version 3 of `gren-lang/node`.
+
 ## 2.0.1
 
 Bump version range of `gren-lang/node`.

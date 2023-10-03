@@ -15,12 +15,14 @@ module Shikensu exposing ( Program, Task, list, program, programs, read, write )
 
 import Bytes.Encode
 import FileSystem
-import Node.Program as Node
+import Init
+import Node
 import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Definition as Definition exposing ( Definition )
-import Shikensu.Error exposing ( Error(..) )
+import Shikensu.Error as Error exposing ( Error(..) )
 import Shikensu.Focus as Focus exposing ( Focus(..) )
 import Shikensu.Path as Path exposing ( Path, Kind(..), Encapsulated, Directory, File )
+import Stream
 import Task
 
 
@@ -46,8 +48,10 @@ type alias Task =
 
 {-| Create a Shikensu Program.
 
-This is basically a wrapper around `list` that creates a Program
-for you and initialises the needed permissions.
+This is basically a wrapper around `list` and `FileSystem.initialize`
+that creates a Program for you and initialises the needed permissions.
+
+It also prints errors to stderr or a success message to stdout.
 
     import Shikensu
     import Shikensu.Contrib as Shikensu
@@ -99,20 +103,33 @@ programs :
         }
     -> Program
 programs collection =
-    (\fsPermission ->
-        collection
-            |> Array.map
-                    (\{ focus, sequence } ->
-                        focus
-                            |> list fsPermission
-                            |> sequence
-                    )
-            |> Task.sequence
-            |> Task.attempt (\_ -> {})
-            |> Node.endWithCmd
-    )
-        |> Node.await FileSystem.initialize
-        |> Node.defineSimple
+    let
+        withContext env fsPermission =
+            collection
+                |> Array.map
+                        (\{ focus, sequence } ->
+                            focus
+                                |> list fsPermission
+                                |> sequence
+                        )
+                |> Task.sequence
+                |> Task.andThen
+                        (\_ ->
+                            "🧪 Sequence completed"
+                                |> Stream.sendLine env.stdout
+                                |> Task.succeed
+                        )
+                |> Task.onError
+                        (\err ->
+                            err
+                                |> Error.toString
+                                |> String.append "🚨 "
+                                |> Stream.sendLine env.stderr
+                                |> Task.succeed
+                        )
+                |> (\task -> Init.awaitTask task Node.endWithCmd)
+    in
+    Node.defineSimpleProgram (withContext >> Init.await FileSystem.initialize)
 
 
 {-| The `list` function itself, unwrapped.
@@ -128,7 +145,24 @@ optionally write it back to disk. This is done through these definitions.
     import Shikensu
     import Shikensu.Focus exposing (Focus(..))
 
-    Shikensu.list fsPermission CurrentDirectory
+    Node.defineSimpleProgram
+      (\_ ->
+        Init.await
+          FileSystem.initialize
+          (\fsPermission ->
+            CurrentDirectory
+              |> Shikensu.list fsPermission
+              |> Task.map (Shikensu.withExtension "md")
+              |> ...
+              -- When creating a `SimpleProgram` we need to return a `Init.Task`
+              -- This requires us to use `Init.awaitTask` which expects a task of the type `Task Never a`
+              -- This is different from Shikensu's Task type, which is `Task Error a`
+              -- So ideally you do some error handling here, or just ignore it.
+              |> Task.andThen (\_ -> Task.succeed Cmd.none)
+              |> Task.onError (\_ -> Task.succeed Cmd.none)
+              |> (\task -> Init.awaitTask task Node.endWithCmd)
+          )
+      )
 
 ⚠️ The given `Focus` will always be in the context of
 the environment of the resulting Gren binary that is being executed.
