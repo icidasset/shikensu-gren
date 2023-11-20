@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.0
+
+* Added `Shikensu.bundle`
+* Added `Shikensu.Contrib.enclose`
+* Improved the `Bundle` type
+* Removed `Shikensu.writeDefinition` (use `bundle` instead)
+
 ## 4.0.0
 
 Moved the `currentWorkingDirectory` to the main `Shikensu` module so that it can use the `Error` type instead for ease of use.

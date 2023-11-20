@@ -1,4 +1,4 @@
-module Shikensu.Contrib.Definition exposing ( clearMetadata, copyPropsToMetadata, insertMetadata, permalink, rename, renameExtension, renderContent )
+module Shikensu.Contrib.Definition exposing ( clearMetadata, copyPropsToMetadata, enclose, insertMetadata, permalink, rename, renameExtension, renderContent )
 
 {-| See `Shikensu.Contrib` module for documentation.
 -}
@@ -49,6 +49,12 @@ copyPropsToMetadata def =
                     ]
                 )
         |> (\dict -> { def | metadata = dict })
+
+
+{-|-}
+enclose : String -> Definition -> Definition
+enclose dir def =
+    { def | directoryPath = Path.map (Array.pushLast dir) def.directoryPath }
 
 
 {-|-}

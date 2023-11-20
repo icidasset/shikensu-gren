@@ -24,13 +24,13 @@ The rest is contextual information.
 
 -}
 type alias Bundle =
-    { compendium :
-        Array Definition
-            -- 
-            -- Context:
-            -- 
-    , fsPermission : FileSystem.Permission
-    , focusDirectory : Path Directory -- The absolute path of the resolved `focus` given as a param to the `list` function
+    { compendium : Array Definition
+
+    , -- 
+      -- Context:
+      -- 
+      fsPermission : FileSystem.Permission
+    , readingDirectory : Maybe (Path Directory) -- The absolute path that will be used as the base for reading files (ie. base + relativePath def) (usually this is the resolved `focus` given as a param to the `list` function)
     , workingDirectory : Path Directory -- The current working directory of the program (resolved via gren-lang/node package)
     }
 

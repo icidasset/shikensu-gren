@@ -1,4 +1,4 @@
-module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata )
+module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, enclose, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata )
 
 {-|
 
@@ -7,7 +7,7 @@ Premade functions to manipulate your bundles/definitions with.
 
 # Contrib
 
-@docs clearMetadata, clone, copyPropsToMetadata, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata
+@docs clearMetadata, clone, copyPropsToMetadata, enclose, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata
 
 -}
 
@@ -58,6 +58,16 @@ clone existingPath newPath =
 copyPropsToMetadata : Bundle -> Bundle
 copyPropsToMetadata =
     Bundle.mapCompendium (Array.map Contrib.Definition.copyPropsToMetadata)
+
+
+{-| Append the given directory path to the directory path of each definition.
+-}
+enclose : String -> Bundle -> Bundle
+enclose dir =
+    dir
+        |> Contrib.Definition.enclose
+        |> Array.map
+        |> Bundle.mapCompendium
 
 
 {-| Exclude.
