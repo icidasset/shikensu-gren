@@ -307,7 +307,7 @@ bundle fsPermission compendium =
         (\cwd ->
             { compendium = compendium
 
-            , --
+            , -- 
               fsPermission = fsPermission
             , readingDirectory = Nothing
             , workingDirectory = cwd

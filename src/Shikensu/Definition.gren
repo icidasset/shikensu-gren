@@ -105,10 +105,13 @@ fork relPath def =
 
 baseName : String -> String
 baseName name =
-    name
-        |> String.split "."
-        |> Array.dropLast 1
-        |> String.join "."
+    if String.contains "." name then
+        name
+            |> String.split "."
+            |> Array.dropLast 1
+            |> String.join "."
+    else
+        name
 
 
 directoryPath : Path File -> Path Directory
@@ -121,4 +124,7 @@ directoryPath relPath =
 
 extensionName : String -> Maybe String
 extensionName name =
-    Array.last (String.split "." name)
+    if String.contains "." name then
+        Array.last (String.split "." name)
+    else
+        Nothing

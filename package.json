@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "gren": "^0.0.1",
+    "gren-lang": "^0.3.0",
     "gren-packages": "^3.1.0"
   }
 }

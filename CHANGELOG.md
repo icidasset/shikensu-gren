@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.1
+
+Fixes an issue with listing extension-less files.
+
 ## 5.0.0
 
 * Added `Shikensu.bundle`

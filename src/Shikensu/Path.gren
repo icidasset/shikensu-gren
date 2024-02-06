@@ -99,7 +99,7 @@ file =
 
 
 {-| Convert a POSIX formatted string to a path.
-This will return a `Encapsulated` path. To get a path of the type `Path Directory` or `Path File`, use the functions in the `Webnative.Path.Encapsulated` module.
+This will return a `Encapsulated` path. To get a path of the type `Path Directory` or `Path File`, use the functions in the `Shikensu.Path.Encapsulated` module.
 
     >>> import Shikensu.Path.Encapsulated
     >>> "foo/bar/"
