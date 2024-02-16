@@ -99,6 +99,8 @@ program sequence focus =
 Technically not multiple programs, but same idea as
 the `program` function, just with multiple lists.
 
+Programs are performed sequentially.
+
     import Shikensu
     import Shikensu.Focus exposing (Focus(..))
 
@@ -124,14 +126,17 @@ programs collection =
         , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
         }
         (\fsPermission ->
-            collection
-                |> Array.map
-                        (\{ focus, sequence } ->
+            Array.foldl
+                (\{ focus, sequence } ->
+                    Task.andThen
+                        (\_ ->
                             focus
                                 |> list fsPermission
                                 |> sequence
                         )
-                |> Task.sequence
+                )
+                (bundle fsPermission [])
+                collection
         )
 
 

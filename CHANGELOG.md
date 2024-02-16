@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.1.0
+
+Changed the behaviour of the `Shikensu.programs` function, programs are now performed sequentially instead of concurrently (+ the documentation of the function now states this).
+
 ## 5.0.1
 
 Fixes an issue with listing extension-less files.
