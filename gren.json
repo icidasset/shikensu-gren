@@ -4,20 +4,17 @@
   "name": "icidasset/shikensu-gren",
   "summary": "Run a sequence of functions on in-memory representations of files",
   "license": "BSD-3-Clause",
-  "version": "5.1.0",
+  "version": "6.0.0",
   "exposed-modules": [
     "Shikensu",
     "Shikensu.Bundle",
     "Shikensu.Contrib",
     "Shikensu.Definition",
-    "Shikensu.Error",
-    "Shikensu.Focus",
-    "Shikensu.Path",
-    "Shikensu.Path.Encapsulated"
+    "Shikensu.Error"
   ],
-  "gren-version": "0.2.0 <= v < 1.0.0",
+  "gren-version": "0.4.0 <= v < 1.0.0",
   "dependencies": {
-    "gren-lang/core": "4.0.0 <= v < 5.0.0",
-    "gren-lang/node": "3.0.0 <= v < 4.0.0"
+    "gren-lang/core": "5.0.0 <= v < 6.0.0",
+    "gren-lang/node": "4.1.1 <= v < 5.0.0"
   }
 }

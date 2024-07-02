@@ -1,27 +1,26 @@
 # Shīkensu
 
-> シーケンス    
+> シーケンス
 > Sequence
 
-Run a sequence of functions on in-memory representations of files.  
+Run a sequence of functions on in-memory representations of files.
 __Build static websites with ease__, without conforming to a specific structure.
 
 ### Markdown example
 
 ```gren
 import Bytes exposing ( Bytes )
+import FileSystem.Path as Path exposing ( Path )
 import Shikensu
 import Shikensu.Contrib as Shikensu
 import Shikensu.Definition as Shikensu
-import Shikensu.Focus as Shikensu exposing ( Focus(..) )
-import Shikensu.Path as Path
 import Task
 
 
 main : Shikensu.Program
 main =
-    -- 🚀
-    Shikensu.program sequence CurrentDirectory
+    -- 🚀 List current directory
+    Shikensu.program sequence Path.empty
 
 
 sequence : Shikensu.Task -> Shikensu.Task
@@ -39,9 +38,9 @@ sequence task =
         |> Task.andThen (Shikensu.write destination)
 
 
-destination : Shikensu.Focus
+destination : Path
 destination =
-    Relative (Path.directory [ "build" ])
+    Path.fromPosix "./dist"
 
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes

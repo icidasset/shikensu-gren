@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.0.0
+
+- Updated to gren 0.4.x and the new node package.
+- Replaced Path & Focus modules with `FileSystem.Path` from Gren's node package.
+- Should technically work on Windows now (not tested though)
+
 ## 5.1.0
 
 Changed the behaviour of the `Shikensu.programs` function, programs are now performed sequentially instead of concurrently (+ the documentation of the function now states this).

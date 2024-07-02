@@ -9,8 +9,8 @@ module Shikensu.Bundle exposing ( Bundle, mapCompendium )
 -}
 
 import FileSystem
+import FileSystem.Path exposing ( Path )
 import Shikensu.Definition exposing ( Definition )
-import Shikensu.Path exposing ( Path, Directory )
 
 
 
@@ -30,8 +30,7 @@ type alias Bundle =
       -- Context:
       -- 
       fsPermission : FileSystem.Permission
-    , readingDirectory : Maybe (Path Directory) -- The absolute path that will be used as the base for reading files (ie. base + relativePath def) (usually this is the resolved `focus` given as a param to the `list` function)
-    , workingDirectory : Path Directory -- The current working directory of the program (resolved via gren-lang/node package)
+    , readingDirectory : Maybe Path -- The absolute path that will be used as the base for reading files (ie. base + def.path)
     }
 
 

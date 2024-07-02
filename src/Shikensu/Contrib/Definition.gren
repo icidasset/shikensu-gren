@@ -1,13 +1,13 @@
-module Shikensu.Contrib.Definition exposing ( clearMetadata, copyPropsToMetadata, enclose, insertMetadata, permalink, rename, renameExtension, renderContent )
+module Shikensu.Contrib.Definition exposing ( clearMetadata, enclose, insertMetadata, permalink, rename, renameExtension, renderContent )
 
 {-| See `Shikensu.Contrib` module for documentation.
 -}
 
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
+import FileSystem.Path as Path exposing ( Path )
 import Json.Encode as Json
 import Shikensu.Definition as Definition exposing ( Definition )
-import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
 {-|-}
@@ -17,44 +17,9 @@ clearMetadata def =
 
 
 {-|-}
-copyPropsToMetadata : Definition -> Definition
-copyPropsToMetadata def =
-    def.metadata
-        |> Dict.union
-                (Dict.fromArray
-                    [ { key = "baseName"
-                      , value = Json.string def.baseName
-                      }
-                    , { key = "directoryPath"
-                      , value =
-                            Json.string
-                                (Path.toPosix
-                                    { absolute = False
-                                    }
-                                    def.directoryPath
-                                )
-                      }
-                    , { key = "extensionName"
-                      , value = Maybe.withDefault Json.null (Maybe.map Json.string def.extensionName)
-                      }
-                    , { key = "relativePath"
-                      , value =
-                            Json.string
-                                (Path.toPosix
-                                    { absolute = False
-                                    }
-                                    (Definition.relativePath def)
-                                )
-                      }
-                    ]
-                )
-        |> (\dict -> { def | metadata = dict })
-
-
-{-|-}
 enclose : String -> Definition -> Definition
 enclose dir def =
-    { def | directoryPath = Path.map (Array.pushLast dir) def.directoryPath }
+    { def | path = { def.path | directory = Array.pushLast dir def.path.directory } }
 
 
 {-|-}
@@ -68,23 +33,28 @@ insertMetadata additionalMetadata def =
 {-|-}
 permalink : String -> Definition -> Definition
 permalink newBaseName def =
-    if def.baseName /= newBaseName then
-        let
-            newDirectoryPath =
-                Path.map (Array.pushLast def.baseName) def.directoryPath
-        in
-        { def
-            | baseName = newBaseName
-            , directoryPath = newDirectoryPath
-        }
+    if def.path.filename /= newBaseName then
+        def.path.extension
+            |> (\ext ->
+                    case ext of
+                        "" ->
+                            ""
+
+                        _ ->
+                            "." ++ ext
+                )
+            |> (++) newBaseName
+            |> Path.fromPosixString
+            |> Path.prepend { def.path | extension = "" }
+            |> (\path -> { def | path = path })
     else
         def
 
 
 {-|-}
-rename : Path File -> Path File -> Definition -> Definition
+rename : Path -> Path -> Definition -> Definition
 rename oldPath newPath def =
-    if Definition.relativePath def == oldPath then
+    if def.path == oldPath then
         Definition.fork newPath def
     else
         def
@@ -93,8 +63,8 @@ rename oldPath newPath def =
 {-|-}
 renameExtension : String -> String -> Definition -> Definition
 renameExtension oldExtname newExtname def =
-    if def.extensionName == Just oldExtname then
-        { def | extensionName = Just newExtname }
+    if def.path.extension == oldExtname then
+        { def | path = { def.path | extension = newExtname } }
     else
         def
 

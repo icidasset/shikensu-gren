@@ -1,18 +1,17 @@
-module Shikensu.Definition exposing ( Definition, create, fork, relativePath )
+module Shikensu.Definition exposing ( Definition, create, fork )
 
 {-|
 
 # Definition
 
-@docs Definition, create, fork, relativePath
+@docs Definition, create, fork
 
 -}
 
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
+import FileSystem.Path exposing ( Path )
 import Json.Encode as Json
-import Shikensu.Focus as Focus exposing ( Focus )
-import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
 
@@ -25,106 +24,40 @@ Example definition, given:
 The working directory root path `/Users/icidasset/Projects/shikensu/example/`
 and the full item path `/Users/icidasset/Projects/shikensu/example/test/hello.md`
 
-    { baseName = "hello"
-    , content = Nothing
-    , directoryPath = Path.directory [ "test" ]
-    , extensionName = Just "md"
+    { content = Nothing
+    , path = FileSystem.Path.fromPosixString "test/hello.md"
     , metadata = Dict.empty
     }
 
 -}
 type alias Definition =
-    { baseName : String
-    , content : Maybe Bytes
-    , directoryPath : Path Directory
-    , extensionName : Maybe String
+    { content : Maybe Bytes
+    , path : Path
     , metadata : Dict String Json.Value
     }
-
-
-
--- PATHS
-
-
-{-| The path relative to the working directory.
--}
-relativePath : Definition -> Path File
-relativePath def =
-    [ def.baseName ++ Maybe.withDefault "" (Maybe.map (\e -> "." ++ e) def.extensionName)
-    ]
-        |> Path.file
-        |> Path.combine def.directoryPath
 
 
 
 -- 🛠
 
 
-{-| Create a definition, given a relative path.
+{-| Create a definition, given a (relative) path.
+In other words, the `root` property of a given path will always be ignored.
 -}
-create : Path File -> Definition
+create : Path -> Definition
 create relPath =
-    let
-        name =
-            relPath
-                |> Path.unwrap
-                |> Array.last
-                |> Maybe.withDefault ""
-    in
-    { baseName = baseName name
-    , content = Nothing
-    , directoryPath = directoryPath relPath
-    , extensionName = extensionName name
+    { content = Nothing
     , metadata = Dict.empty
+    , path = { relPath | root = "" }
     }
 
 
 {-| Fork a definition, given a relative path.
 Taking the metadata and content of the original definition.
 -}
-fork : Path File -> Definition -> Definition
+fork : Path -> Definition -> Definition
 fork relPath def =
-    let
-        name =
-            relPath
-                |> Path.unwrap
-                |> Array.last
-                |> Maybe.withDefault ""
-    in
-    { baseName = baseName name
-    , content = def.content
-    , directoryPath = directoryPath relPath
-    , extensionName = extensionName name
+    { content = def.content
     , metadata = def.metadata
+    , path = relPath
     }
-
-
-
--- ㊙️
-
-
-baseName : String -> String
-baseName name =
-    if String.contains "." name then
-        name
-            |> String.split "."
-            |> Array.dropLast 1
-            |> String.join "."
-    else
-        name
-
-
-directoryPath : Path File -> Path Directory
-directoryPath relPath =
-    relPath
-        |> Path.unwrap
-        |> Array.dropLast 1
-        |> Path.directory
-
-
-extensionName : String -> Maybe String
-extensionName name =
-    if String.contains "." name then
-        Array.last (String.split "." name)
-    else
-        Nothing

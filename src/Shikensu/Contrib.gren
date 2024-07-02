@@ -1,4 +1,4 @@
-module Shikensu.Contrib exposing ( clearMetadata, clone, copyPropsToMetadata, enclose, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata )
+module Shikensu.Contrib exposing ( clearMetadata, clone, enclose, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata )
 
 {-|
 
@@ -7,17 +7,17 @@ Premade functions to manipulate your bundles/definitions with.
 
 # Contrib
 
-@docs clearMetadata, clone, copyPropsToMetadata, enclose, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata
+@docs clearMetadata, clone, enclose, exclude, insertMetadata, permalink, rename, renameExtension, renderContent, replaceMetadata, setContent, transformContent, withBaseName, withDirectory, withExtension, withMetadata
 
 -}
 
 import Bytes exposing ( Bytes )
 import Dict exposing ( Dict )
+import FileSystem.Path as Path exposing ( Path )
 import Json.Encode as Json
 import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Contrib.Definition as Contrib.Definition
 import Shikensu.Definition as Definition exposing ( Definition )
-import Shikensu.Path as Path exposing ( Path, Kind(..), Directory, File )
 
 
 {-| Clear metadata.
@@ -36,13 +36,13 @@ and add that into the compendium just after the matching definition.
     >>> clone "index.html" "200.html" bundle
 
 -}
-clone : Path File -> Path File -> Bundle -> Bundle
+clone : Path -> Path -> Bundle -> Bundle
 clone existingPath newPath =
     []
         |> Array.foldr
                 (\def acc ->
-                    if Definition.relativePath def == existingPath then
-                        Array.postfix
+                    if def.path == existingPath then
+                        Array.append
                             [ def
                             , Definition.fork newPath def
                             ]
@@ -51,13 +51,6 @@ clone existingPath newPath =
                         Array.pushLast def acc
                 )
         |> Bundle.mapCompendium
-
-
-{-| Copy definition properties into the metadata.
--}
-copyPropsToMetadata : Bundle -> Bundle
-copyPropsToMetadata =
-    Bundle.mapCompendium (Array.map Contrib.Definition.copyPropsToMetadata)
 
 
 {-| Append the given directory path to the directory path of each definition.
@@ -72,12 +65,12 @@ enclose dir =
 
 {-| Exclude.
 
-Filter out the definitions that have the given `relativePath`.
+Filter out the definitions that have the given `path`.
 
 -}
-exclude : Path File -> Bundle -> Bundle
+exclude : Path -> Bundle -> Bundle
 exclude path =
-    (\def -> Definition.relativePath def /= path)
+    (\def -> def.path /= path)
         |> Array.filter
         |> Bundle.mapCompendium
 
@@ -120,7 +113,7 @@ For example, if you have a definition with the relativePath path `a/b/example.ht
     ..>   compendium
 
 -}
-rename : Path File -> Path File -> Bundle -> Bundle
+rename : Path -> Path -> Bundle -> Bundle
 rename oldPath newPath =
     newPath
         |> Contrib.Definition.rename oldPath
@@ -198,16 +191,16 @@ transformContent =
 -}
 withBaseName : String -> Bundle -> Bundle
 withBaseName baseName =
-    (\def -> def.baseName == baseName)
+    (\def -> def.path.filename == baseName)
         |> Array.filter
         |> Bundle.mapCompendium
 
 
 {-| Only keep definitions with the given directory path.
 -}
-withDirectory : Path Directory -> Bundle -> Bundle
+withDirectory : Path -> Bundle -> Bundle
 withDirectory directoryPath =
-    (\def -> def.directoryPath == directoryPath)
+    (\def -> Path.parentPath def.path == Just directoryPath)
         |> Array.filter
         |> Bundle.mapCompendium
 
@@ -216,7 +209,7 @@ withDirectory directoryPath =
 -}
 withExtension : String -> Bundle -> Bundle
 withExtension extension =
-    (\def -> def.extensionName == Just extension)
+    (\def -> def.path.extension == extension)
         |> Array.filter
         |> Bundle.mapCompendium
 

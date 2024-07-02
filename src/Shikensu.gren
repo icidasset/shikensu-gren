@@ -1,4 +1,4 @@
-module Shikensu exposing ( Program, Task, bundle, currentWorkingDirectory, list, perform, program, programs, read, write )
+module Shikensu exposing ( Program, Task, bundle, list, perform, program, programs, read, write )
 
 {-|
 
@@ -14,19 +14,18 @@ module Shikensu exposing ( Program, Task, bundle, currentWorkingDirectory, list,
 
 # 🛠️
 
-@docs bundle, currentWorkingDirectory
+@docs bundle
 
 -}
 
-import Bytes.Encode
-import FileSystem
+import Bytes
+import FileSystem exposing ( EntityType(..) )
+import FileSystem.Path as Path exposing ( Path )
 import Init
 import Node
 import Shikensu.Bundle as Bundle exposing ( Bundle )
 import Shikensu.Definition as Definition exposing ( Definition )
 import Shikensu.Error as Error exposing ( Error(..) )
-import Shikensu.Focus as Focus exposing ( Focus(..) )
-import Shikensu.Path as Path exposing ( Path, Kind(..), Encapsulated, Directory, File )
 import Stream
 import Task
 
@@ -55,20 +54,20 @@ type alias Task =
 
 This is basically a wrapper around `list` and `perform`.
 It creates a `SimpleProgram` for you, initialises the needed permissions,
-lists the given directory (ie. the focus), and finally performs the given task (sequence).
+lists the given directory path, and finally performs the given task (sequence).
 It also prints errors to stderr or a success message to stdout.
 
 The example below with the comments should help you understand the flow:
 
+    import FileSystem.Path as Path
     import Shikensu
     import Shikensu.Contrib as Shikensu
-    import Shikensu.Focus exposing (Focus(..))
     import Task
 
-    -- Our `Program` which references out `sequence` (more on that later)
-    -- and our `Focus`, the target directory we want to list.
+    -- Our `Program` which references our `sequence` (more on that later)
+    -- and our relative directory path we want to list (empty path = current directory)
     main =
-        Shikensu.program sequence CurrentDirectory
+        Shikensu.program sequence Path.empty
 
     -- This is our `sequence`.
     -- Here we receive a `Task` that contains the directory listing (aka. the compendium)
@@ -82,13 +81,13 @@ The example below with the comments should help you understand the flow:
             |> Task.map (Shikensu.withExtension "md")
             |> Task.andThen Shikensu.read
             |> Task.map (Shikensu.renderContent markdownRenderer) -- See `example` folder
-            |> Task.andThen (Shikensu.write destinationFocus)
+            |> Task.andThen (Shikensu.write destinationPath)
 
 -}
-program : (Task -> Task) -> Focus -> Program
-program sequence focus =
+program : (Task -> Task) -> Path -> Program
+program sequence path =
     programs
-        [ { focus = focus
+        [ { path = path
           , sequence = sequence
           }
         ]
@@ -101,14 +100,14 @@ the `program` function, just with multiple lists.
 
 Programs are performed sequentially.
 
+    import FileSystem.Path as Path
     import Shikensu
-    import Shikensu.Focus exposing (Focus(..))
 
     Shikensu.programs
-        [ { focus = Relative (Path.directory [ "posts" ])
+        [ { path = Path.fromPosixString "./posts"
           , sequence = Task.andThen Shikensu.read
           }
-        , { focus = Relative (Path.directory [ "images" ])
+        , { path = Path.fromPosixString "./images"
           , sequence = Task.map (\bundle -> ...)
           }
         ]
@@ -116,7 +115,7 @@ Programs are performed sequentially.
 -}
 programs :
     Array
-        { focus : Focus
+        { path : Path
         , sequence : Task -> Task
         }
     -> Program
@@ -127,15 +126,18 @@ programs collection =
         }
         (\fsPermission ->
             Array.foldl
-                (\{ focus, sequence } ->
+                (\{ path, sequence } ->
                     Task.andThen
                         (\_ ->
-                            focus
+                            path
                                 |> list fsPermission
                                 |> sequence
                         )
                 )
-                (bundle fsPermission [])
+                ([]
+                    |> bundle fsPermission
+                    |> Task.succeed
+                )
                 collection
         )
 
@@ -150,8 +152,8 @@ This collection of `Definition`s is the main thing you'll be working with.
 The goal of this library is to scan a file tree, manipulate it and then
 optionally write it back to disk. This is done through these definitions.
 
+    import FileSystem.Path as Path
     import Shikensu
-    import Shikensu.Focus exposing (Focus(..))
 
     Shikensu.perform
         -- To ignore, return `Cmd.none`
@@ -159,44 +161,24 @@ optionally write it back to disk. This is done through these definitions.
         , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
         }
         (\fsPermission ->
-            CurrentDirectory
+            Path.empty
                 |> Shikensu.list fsPermission
                 |> Task.map (Shikensu.withExtension "md")
         )
 
-⚠️ The given `Focus` will always be in the context of
-the environment of the resulting Gren binary that is being executed.
-So for example, say your `pwd` command returns `~/code/shikensu/`,
-and your focus is `Relative (Path.Directory [ "..", "example" ])`.
-If you run `./binary/app` the resulting path will be `~/code/example/`.
-
 -}
-list : FileSystem.Permission -> Focus -> Task
-list fsPermission focus =
-    fsPermission
-        |> currentWorkingDirectory
-        |> Task.andThen
-                (\cwd ->
-                    let
-                        listFocusDirectory =
-                            Focus.toAbsolutePath
-                                { cwd = cwd
-                                }
-                                focus
-                    in
-                    []
-                        |> Path.directory
-                        |> recursiveList fsPermission listFocusDirectory
-                        |> Task.map
-                                (\compendium ->
-                                    { compendium = compendium
+list : FileSystem.Permission -> Path -> Task
+list fsPermission readPath =
+    Path.empty
+        |> recursiveList fsPermission readPath
+        |> Task.map
+                (\compendium ->
+                    { compendium = compendium
 
-                                    , -- Context:
-                                      fsPermission = fsPermission
-                                    , readingDirectory = Just listFocusDirectory
-                                    , workingDirectory = cwd
-                                    }
-                                )
+                    , -- Context:
+                      fsPermission = fsPermission
+                    , readingDirectory = Just readPath
+                    }
                 )
 
 
@@ -206,8 +188,8 @@ This function is also useful for when you want to write definitions to disk.
 Maybe you have a JSON file and you want to split it up in multiple files,
 that's something you can do with this function.
 
+    import FileSystem.Path as Path
     import Shikensu
-    import Shikensu.Focus exposing (Focus(..))
 
     Shikensu.perform
         -- To ignore, return `Cmd.none`
@@ -217,7 +199,7 @@ that's something you can do with this function.
         (\fsPermission ->
             [ { baseName = "json-file-1"
               , content = Just jsonBytes
-              , directoryPath = Path.directory [ "splitted" ]
+              , directoryPath = Path.fromPosixString "splitted"
               , extensionName = Just "json"
               , metadata = Dict.empty
               }
@@ -233,8 +215,8 @@ See the `list` function above for an example using `list`.
 
 -}
 perform :
-    { onSuccess : Node.Environment -> a -> Cmd {}
-    , onError : Node.Environment -> Error -> Cmd {}
+    { onSuccess : Node.Environment -> a -> Task.Task Error {}
+    , onError : Node.Environment -> Error -> Task.Task Never {}
     }
     -> (FileSystem.Permission -> Task.Task Error a)
     -> Program
@@ -246,8 +228,9 @@ perform errorHandling taskCreator =
                 (\fsPermission ->
                     fsPermission
                         |> taskCreator
-                        |> Task.andThen (errorHandling.onSuccess env >> Task.succeed)
-                        |> Task.onError (errorHandling.onError env >> Task.succeed)
+                        |> Task.andThen (errorHandling.onSuccess env)
+                        |> Task.onError (errorHandling.onError env)
+                        |> Task.map (\_ -> Cmd.none)
                         |> (\t -> Init.awaitTask t Node.endWithCmd)
                 )
         )
@@ -277,20 +260,14 @@ read bun =
 
 
 {-| Write each definition to their respective location.
-The location will depend on the focus and the environment it was run in.
+The location will depend on the destination path.
 -}
-write : Focus -> Bundle -> Task
-write destinationFocus bun =
-    destinationFocus
-        |> Focus.toAbsolutePath
-                { cwd = bun.workingDirectory
-                }
-        |> (\destinationDirectory ->
-                bun.compendium
-                    |> Array.map (writeDefinition bun.fsPermission destinationDirectory)
-                    |> Task.sequence
-                    |> Task.map (\_ -> bun)
-            )
+write : Path -> Bundle -> Task
+write destinationPath bun =
+    bun.compendium
+        |> Array.map (writeDefinition bun.fsPermission destinationPath)
+        |> Task.sequence
+        |> Task.map (\_ -> bun)
 
 
 
@@ -302,40 +279,15 @@ write destinationFocus bun =
 Use this to write a custom array of definitions to disk
 (there's an example in the `perform` function docs).
 
-This is basically a small wrapper around `currentWorkingDirectory`
-that makes a `Bundle`.
-
 -}
-bundle : FileSystem.Permission -> Array Definition -> Task
+bundle : FileSystem.Permission -> Array Definition -> Bundle
 bundle fsPermission compendium =
-    Task.map
-        (\cwd ->
-            { compendium = compendium
+    { compendium = compendium
 
-            , -- 
-              fsPermission = fsPermission
-            , readingDirectory = Nothing
-            , workingDirectory = cwd
-            }
-        )
-        (currentWorkingDirectory fsPermission)
-
-
-{-| Get the absolute directory path of the current working directory.
--}
-currentWorkingDirectory : FileSystem.Permission -> Task.Task Error (Path Directory)
-currentWorkingDirectory permission =
-    permission
-        |> FileSystem.currentWorkingDirectory
-        |> Task.map
-                (\a ->
-                    if String.endsWith "/" a then
-                        a
-                    else
-                        a ++ "/"
-                )
-        |> Task.map (Path.fromPosix >> Path.unwrap >> Path.directory)
-        |> Task.mapError (\_ -> ErrorMessage "Never ever have I 🤫")
+    , -- 
+      fsPermission = fsPermission
+    , readingDirectory = Nothing
+    }
 
 
 
@@ -344,134 +296,74 @@ currentWorkingDirectory permission =
 
 {-| Read the content of a given definition.
 -}
-readDefinition : FileSystem.Permission -> Path Directory -> Definition -> Task.Task Error Definition
+readDefinition : FileSystem.Permission -> Path -> Definition -> Task.Task Error Definition
 readDefinition fsPermission readingDirectory def =
-    def
-        |> Definition.relativePath
-        |> Path.combine readingDirectory
-        |> (\path ->
-                path
-                    |> Path.toPosix
-                            { absolute = True
-                            }
-                    |> FileSystem.openForRead fsPermission
-                    |> Task.mapError (PlatformAccessError (Path.encapsulate path))
-            )
-        |> Task.andThen
-                (\handle ->
-                    handle
-                        |> FileSystem.read
-                        |> Task.mapError PlatformUnknownError
-                        |> Task.map (\bytes -> { def | content = Just bytes })
-                        |> Task.andThen
-                                (\updatedDef ->
-                                    handle
-                                        |> FileSystem.close
-                                        |> Task.map (\_ -> updatedDef)
-                                        |> Task.mapError PlatformUnknownError
-                                )
-                )
+    let
+        path =
+            Path.prepend readingDirectory def.path
+    in
+    path
+        |> FileSystem.readFile fsPermission
+        |> Task.mapError (PlatformError path)
+        |> Task.map (\bytes -> { def | content = Just bytes })
 
 
 {-| Write a definition to its respective location.
 The location will depend on the given directory path and the environment it was run in.
 The given directory path must be an absolute path!
 -}
-writeDefinition : FileSystem.Permission -> Path Directory -> Definition -> Task.Task Error {}
+writeDefinition : FileSystem.Permission -> Path -> Definition -> Task.Task Error {}
 writeDefinition permission destinationDirectory def =
-    def
-        |> Definition.relativePath
-        |> Path.combine destinationDirectory
-        |> (\path ->
-                path
-                    |> Path.toPosix
-                            { absolute = True
-                            }
-                    |> FileSystem.openForWrite permission FileSystem.EnsureEmpty
-                    |> Task.mapError (PlatformAccessError (Path.encapsulate path))
-            )
-        |> Task.andThen
-                (\handle ->
-                    def.content
-                        |> Maybe.withDefault
-                                (Bytes.Encode.encode
-                                    <| Bytes.Encode.string ""
-                                )
-                        |> FileSystem.write handle
-                        |> Task.mapError PlatformUnknownError
+    let
+        path =
+            Path.prepend destinationDirectory def.path
+    in
+    path
+        |> Path.parentPath
+        |> Maybe.map
+                (FileSystem.makeDirectory
+                    permission
+                    { recursive = True
+                    }
                 )
+        |> Maybe.withDefault (Task.succeed path)
+        |> Task.andThen (\_ -> FileSystem.writeFile permission (Maybe.withDefault (Bytes.fromString "") def.content) path)
+        |> Task.mapError (PlatformError path)
         |> Task.map (\_ -> {})
-        |> Task.onError
-                (\err ->
-                    case err of
-                        PlatformAccessError path FileSystem.AccessErrorNotFound ->
-                            -- Make sure directory tree exists
-                            let
-                                directoryPath =
-                                    path
-                                        |> Path.unwrap
-                                        |> Array.dropLast 1
-                                        |> Path.directory
-
-                                directoryPathString =
-                                    Path.toPosix
-                                        { absolute = True
-                                        }
-                                        directoryPath
-                            in
-                            { recursive = True
-                            }
-                                |> FileSystem.makeDirectory permission directoryPathString
-                                |> Task.mapError (PlatformAccessError (Path.encapsulate directoryPath))
-                                |> Task.andThen (\_ -> writeDefinition permission destinationDirectory def)
-
-                        _ ->
-                            Task.fail err
-                )
 
 
 
 -- ㊙️
 
 
-recursiveList : FileSystem.Permission -> Path Directory -> Path Directory -> Task.Task Error (Array Definition)
-recursiveList permission focusDirectory relativePath =
-    relativePath
-        |> Path.combine focusDirectory
-        |> (\path ->
-                path
-                    |> Path.toPosix
-                            { absolute = True
-                            }
-                    |> FileSystem.listDirectory permission
-                    |> Task.mapError (PlatformAccessError (Path.encapsulate path))
-            )
+recursiveList : FileSystem.Permission -> Path -> Path -> Task.Task Error (Array Definition)
+recursiveList permission readPath listPath =
+    listPath
+        |> Path.prepend readPath
+        |> FileSystem.listDirectory permission
+        |> Task.mapError (PlatformError listPath)
         |> Task.andThen
                 (\listing ->
                     listing
                         |> Array.filterMap
-                                (\entry ->
-                                    -- TODO: Add option to also list hidden files
-                                    case entry of
-                                        FileSystem.File name ->
-                                            if String.startsWith "." name then
+                                (\{ entityType, path } ->
+                                    case entityType of
+                                        File ->
+                                            -- TODO: Add option to also list hidden files
+                                            if String.startsWith "." path.filename then
                                                 Nothing
                                             else
-                                                name
-                                                    |> Array.singleton
-                                                    |> Path.file
-                                                    |> Path.combine relativePath
+                                                path
+                                                    |> Path.prepend listPath
                                                     |> Definition.create
                                                     |> Array.singleton
                                                     |> Task.succeed
                                                     |> Just
 
-                                        FileSystem.Directory name ->
-                                            name
-                                                |> Array.singleton
-                                                |> Path.directory
-                                                |> Path.combine relativePath
-                                                |> recursiveList permission focusDirectory
+                                        Directory ->
+                                            path
+                                                |> Path.prepend listPath
+                                                |> recursiveList permission readPath
                                                 |> Just
 
                                         _ ->

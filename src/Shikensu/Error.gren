@@ -9,7 +9,7 @@ module Shikensu.Error exposing ( Error(..), toString )
 -}
 
 import FileSystem
-import Shikensu.Path as Path exposing ( Path, Encapsulated )
+import FileSystem.Path as Path exposing ( Path )
 
 
 
@@ -19,8 +19,7 @@ import Shikensu.Path as Path exposing ( Path, Encapsulated )
 {-|-}
 type Error
     = ErrorMessage String
-    | PlatformAccessError (Path Encapsulated) FileSystem.AccessError
-    | PlatformUnknownError FileSystem.UnknownFileSystemError
+    | PlatformError Path FileSystem.Error
 
 
 
@@ -34,39 +33,5 @@ toString error =
         ErrorMessage message ->
             message
 
-        PlatformAccessError path FileSystem.AccessErrorNotFound ->
-            "Access error, couldn\'t find path \'"
-                ++ Path.toPosix
-                        { absolute = True
-                        }
-                        path
-                ++ "\'"
-
-        PlatformAccessError path FileSystem.AccessErrorNoAccess ->
-            "Access error, couldn\'t access path \'"
-                ++ Path.toPosix
-                        { absolute = True
-                        }
-                        path
-                ++ "\'"
-
-        PlatformAccessError path (FileSystem.AccessErrorUnknown accessError) ->
-            "Access error, \'"
-                ++ accessError
-                ++ "\' with path \'"
-                ++ Path.toPosix
-                        { absolute = True
-                        }
-                        path
-                ++ "\'"
-
-        PlatformAccessError path FileSystem.AccessErrorNotADirectory ->
-            "Access error, expected a directory at the path \'"
-                ++ Path.toPosix
-                        { absolute = True
-                        }
-                        path
-                ++ "\'"
-
-        PlatformUnknownError (FileSystem.UnknownFileSystemError string) ->
-            "Unknown file system error: " ++ string
+        PlatformError path err ->
+            FileSystem.errorToString err

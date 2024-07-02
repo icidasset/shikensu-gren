@@ -3,15 +3,13 @@ module Main exposing ( main )
 {-|-}
 
 import Bytes exposing ( Bytes )
-import Bytes.Decode
-import Bytes.Encode
+import FileSystem.Path as Path exposing ( Path )
+import Markdown
 import Shikensu
 import Shikensu.Contrib as Shikensu
 import Shikensu.Definition as Shikensu
-import Shikensu.Focus as Shikensu exposing ( Focus(..) )
-import Shikensu.Focus
-import Shikensu.Path as Path
 import Task
+import Transmutable.Html
 
 
 main : Shikensu.Program
@@ -21,22 +19,16 @@ main =
 
 
 {-| Which directory are we working with? -}
-source : Shikensu.Focus
+source : Path
 source =
-    [ "content"
-    ]
-        |> Path.directory
-        |> Relative
+    Path.fromPosixString "./content"
 
 
 {-| Optional, the destination of the output we'll be producing.
 -}
-destination : Shikensu.Focus
+destination : Path
 destination =
-    [ "build"
-    ]
-        |> Path.directory
-        |> Relative
+    Path.fromPosixString "./build"
 
 
 {-| A sequence of operations.
@@ -75,13 +67,8 @@ sequence =
         >> Task.map
                 (\bundle ->
                     destination
-                        |> Shikensu.Focus.toAbsolutePath
-                                { cwd = bundle.workingDirectory
-                                }
-                        |> Path.toPosix
-                                { absolute = True
-                                }
-                        |> String.append "🛳️  Bundle successfully written to "
+                        |> Path.toPosixString
+                        |> String.prepend "🛳️  Bundle successfully written to "
                         |> Debug.log
                         |> (\debug -> debug bundle)
                 )
@@ -93,20 +80,16 @@ sequence =
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
 renderMarkdown def =
-    -- TODO: Once there's a markdown parser/renderer written in Gren use it here.
     def.content
-        |> Maybe.andThen
-                (\content ->
-                    content
-                        |> Bytes.width
-                        |> Bytes.Decode.string
-                        |> (\decoder -> Bytes.Decode.decode decoder content)
-                )
+        |> Maybe.andThen Bytes.toString
         |> Maybe.map
-                (\_ ->
-                    """
-                    <h1>Markdown Header</h1>
-                    <p>Content</p>
-                    """
+                (\markdown ->
+                    markdown
+                        |> Markdown.parse
+                                { frontmatter = Nothing
+                                }
+                        |> .blocks
+                        |> Array.map Markdown.toHtml
+                        |> Transmutable.Html.arrayToString
                 )
-        |> Maybe.map (Bytes.Encode.string >> Bytes.Encode.encode)
+        |> Maybe.map Bytes.fromString
