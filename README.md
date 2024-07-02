@@ -40,7 +40,7 @@ sequence task =
 
 destination : Path
 destination =
-    Path.fromPosix "./dist"
+    Path.fromPosixString "./dist"
 
 
 renderMarkdown : Shikensu.Definition -> Maybe Bytes
