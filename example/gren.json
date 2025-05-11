@@ -1,21 +1,19 @@
 {
-    "type": "application",
-    "platform": "node",
-    "source-directories": [
-        "src"
-    ],
-    "gren-version": "0.4.4",
-    "dependencies": {
-        "direct": {
-            "gren-lang/core": "5.0.0",
-            "gren-lang/node": "4.1.1",
-            "icidasset/html-gren": "4.2.0",
-            "icidasset/markdown-gren": "3.2.0",
-            "icidasset/shikensu-gren": "local:.."
-        },
-        "indirect": {
-            "gren-lang/parser": "4.0.0",
-            "gren-lang/url": "4.0.0"
-        }
+  "type": "application",
+  "platform": "node",
+  "source-directories": ["src"],
+  "gren-version": "0.5.3",
+  "dependencies": {
+    "direct": {
+      "gren-lang/core": "6.0.1",
+      "gren-lang/node": "5.0.3",
+      "icidasset/html-gren": "5.0.0",
+      "icidasset/markdown-gren": "local:../../markdown-gren",
+      "icidasset/shikensu-gren": "local:.."
+    },
+    "indirect": {
+      "gren-lang/parser": "5.0.0",
+      "gren-lang/url": "5.0.0"
     }
+  }
 }

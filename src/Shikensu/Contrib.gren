@@ -71,7 +71,7 @@ Filter out the definitions that have the given `path`.
 exclude : Path -> Bundle -> Bundle
 exclude path =
     (\def -> def.path /= path)
-        |> Array.filter
+        |> Array.keepIf
         |> Bundle.mapCompendium
 
 
@@ -192,7 +192,7 @@ transformContent =
 withBaseName : String -> Bundle -> Bundle
 withBaseName baseName =
     (\def -> def.path.filename == baseName)
-        |> Array.filter
+        |> Array.keepIf
         |> Bundle.mapCompendium
 
 
@@ -201,7 +201,7 @@ withBaseName baseName =
 withDirectory : Path -> Bundle -> Bundle
 withDirectory directoryPath =
     (\def -> Path.parentPath def.path == Just directoryPath)
-        |> Array.filter
+        |> Array.keepIf
         |> Bundle.mapCompendium
 
 
@@ -210,7 +210,7 @@ withDirectory directoryPath =
 withExtension : String -> Bundle -> Bundle
 withExtension extension =
     (\def -> def.path.extension == extension)
-        |> Array.filter
+        |> Array.keepIf
         |> Bundle.mapCompendium
 
 
@@ -219,5 +219,5 @@ withExtension extension =
 withMetadata : String -> Json.Value -> Bundle -> Bundle
 withMetadata key value =
     (\def -> Dict.get key def.metadata == Just value)
-        |> Array.filter
+        |> Array.keepIf
         |> Bundle.mapCompendium
