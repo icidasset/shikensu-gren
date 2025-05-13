@@ -232,26 +232,23 @@ perform errorHandling taskCreator =
             Init.await
                 FileSystem.initialize
                 (\permission ->
-                    let
-                        task =
-                            permission
-                                |> taskCreator
-                                |> Task.andThen (\result ->
-                                    errorHandling.onSuccess env result
-                                        |> Task.andThen (\_ -> Node.exit)
-                                )
-                                |> Task.onError (\err ->
-                                    errorHandling.onError env err
-                                        |> Task.andThen (\_ -> Node.exit)
-                                )
-                    in
-                    task
+                    permission
+                        |> taskCreator
+                        |> Task.andThen (\result ->
+                            result
+                                |> errorHandling.onSuccess env
+                                |> Task.andThen (\_ -> Node.exit)
+                        )
+                        |> Task.onError (\err ->
+                            err
+                                |> errorHandling.onError env
+                                |> Task.andThen (\_ -> Node.exit)
+                        )
                         |> Task.map (\_ -> {})
                         |> Task.onError (\_ -> Task.succeed {})
                         |> Node.endSimpleProgram
                 )
         )
-
 
 
 

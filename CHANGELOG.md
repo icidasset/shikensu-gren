@@ -1,10 +1,16 @@
 # Changelog
 
+## 7.0.0
+
+Update to gren v0.5.x
+
+
 ## 6.0.0
 
 - Updated to gren 0.4.x and the new node package.
 - Replaced Path & Focus modules with `FileSystem.Path` from Gren's node package.
 - Should technically work on Windows now (not tested though)
+
 
 ## 5.1.0
 
@@ -21,15 +27,18 @@ Fixes an issue with listing extension-less files.
 * Improved the `Bundle` type
 * Removed `Shikensu.writeDefinition` (use `bundle` instead)
 
+
 ## 4.0.0
 
 Moved the `currentWorkingDirectory` to the main `Shikensu` module so that it can use the `Error` type instead for ease of use.
+
 
 ## 3.0.0
 
 * Added `Shikensu.perform`
 * Added `Shikensu.Error.ErrorMessage`
 * Exposed `Shikensu.writeDefinition`
+
 
 ## 2.0.2
 

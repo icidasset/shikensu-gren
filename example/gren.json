@@ -8,7 +8,7 @@
       "gren-lang/core": "6.0.1",
       "gren-lang/node": "5.0.3",
       "icidasset/html-gren": "5.0.0",
-      "icidasset/markdown-gren": "local:../../markdown-gren",
+      "icidasset/markdown-gren": "4.0.0",
       "icidasset/shikensu-gren": "local:.."
     },
     "indirect": {
