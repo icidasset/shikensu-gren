@@ -19,7 +19,7 @@ import FileSystem.Path as Path exposing ( Path )
 {-|-}
 type Error
     = ErrorMessage String
-    | PlatformError Path FileSystem.Error
+    | PlatformError { path: Path, err: FileSystem.Error }
 
 
 
@@ -29,9 +29,9 @@ type Error
 {-|-}
 toString : Error -> String
 toString error =
-    case error of
+    when error is
         ErrorMessage message ->
             message
 
-        PlatformError path err ->
+        PlatformError { path, err }  ->
             FileSystem.errorToString err

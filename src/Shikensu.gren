@@ -121,8 +121,14 @@ programs :
     -> Program
 programs collection =
     perform
-        { onSuccess = \env _ -> Stream.sendLine env.stdout "🧪 Sequence completed"
-        , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
+        { onSuccess = \env _ ->
+            Stream.write (Bytes.fromString "🧪 Sequence completed\n") env.stdout
+                |> Task.map (\_ -> {})
+                |> Task.onError (\_ -> Task.succeed {})
+        , onError = \env err ->
+            Stream.write (Bytes.fromString ("🚨 " ++ Error.toString err ++ "\n")) env.stderr
+                |> Task.map (\_ -> {})
+                |> Task.onError (\_ -> Task.succeed {})
         }
         (\fsPermission ->
             Array.foldl
@@ -157,8 +163,8 @@ optionally write it back to disk. This is done through these definitions.
 
     Shikensu.perform
         -- To ignore, return `Cmd.none`
-        { onSuccess = \env _ -> Stream.sendLine env.stdout "🧪 Sequence completed"
-        , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
+        { onSuccess = \env _ -> Stream.write env.stdout "🧪 Sequence completed"
+        , onError = \env err -> Stream.write env.stderr ("🚨 " ++ Error.toString err)
         }
         (\fsPermission ->
             Path.empty
@@ -193,8 +199,8 @@ that's something you can do with this function.
 
     Shikensu.perform
         -- To ignore, return `Cmd.none`
-        { onSuccess = \env _ -> Stream.sendLine env.stdout "🧪 Sequence completed"
-        , onError = \env err -> Stream.sendLine env.stderr ("🚨 " ++ Error.toString err)
+        { onSuccess = \env _ -> Stream.write env.stdout "🧪 Sequence completed"
+        , onError = \env err -> Stream.write env.stderr ("🚨 " ++ Error.toString err)
         }
         (\fsPermission ->
             [ { baseName = "json-file-1"
@@ -225,15 +231,27 @@ perform errorHandling taskCreator =
         (\env ->
             Init.await
                 FileSystem.initialize
-                (\fsPermission ->
-                    fsPermission
-                        |> taskCreator
-                        |> Task.andThen (errorHandling.onSuccess env)
-                        |> Task.onError (errorHandling.onError env)
-                        |> Task.map (\_ -> Cmd.none)
-                        |> (\t -> Init.awaitTask t Node.endWithCmd)
+                (\permission ->
+                    let
+                        task =
+                            permission
+                                |> taskCreator
+                                |> Task.andThen (\result ->
+                                    errorHandling.onSuccess env result
+                                        |> Task.andThen (\_ -> Node.exit)
+                                )
+                                |> Task.onError (\err ->
+                                    errorHandling.onError env err
+                                        |> Task.andThen (\_ -> Node.exit)
+                                )
+                    in
+                    task
+                        |> Task.map (\_ -> {})
+                        |> Task.onError (\_ -> Task.succeed {})
+                        |> Node.endSimpleProgram
                 )
         )
+
 
 
 
@@ -248,7 +266,7 @@ read bun =
     bun.compendium
         |> Array.map
                 (\def ->
-                    case bun.readingDirectory of
+                    when bun.readingDirectory is
                         Just readingDirectory ->
                             readDefinition bun.fsPermission readingDirectory def
 
@@ -284,7 +302,7 @@ bundle : FileSystem.Permission -> Array Definition -> Bundle
 bundle fsPermission compendium =
     { compendium = compendium
 
-    , -- 
+    , --
       fsPermission = fsPermission
     , readingDirectory = Nothing
     }
@@ -304,7 +322,7 @@ readDefinition fsPermission readingDirectory def =
     in
     path
         |> FileSystem.readFile fsPermission
-        |> Task.mapError (PlatformError path)
+        |> Task.mapError (\err -> PlatformError { err = err, path = path })
         |> Task.map (\bytes -> { def | content = Just bytes })
 
 
@@ -328,7 +346,7 @@ writeDefinition permission destinationDirectory def =
                 )
         |> Maybe.withDefault (Task.succeed path)
         |> Task.andThen (\_ -> FileSystem.writeFile permission (Maybe.withDefault (Bytes.fromString "") def.content) path)
-        |> Task.mapError (PlatformError path)
+        |> Task.mapError (\err -> PlatformError { err = err, path = path })
         |> Task.map (\_ -> {})
 
 
@@ -341,13 +359,13 @@ recursiveList permission readPath listPath =
     listPath
         |> Path.prepend readPath
         |> FileSystem.listDirectory permission
-        |> Task.mapError (PlatformError listPath)
+        |> Task.mapError (\err -> PlatformError { err = err, path = listPath })
         |> Task.andThen
                 (\listing ->
                     listing
-                        |> Array.filterMap
+                        |> Array.mapAndKeepJust
                                 (\{ entityType, path } ->
-                                    case entityType of
+                                    when entityType is
                                         File ->
                                             -- TODO: Add option to also list hidden files
                                             if String.startsWith "." path.filename then
