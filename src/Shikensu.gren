@@ -37,7 +37,7 @@ import Task
 {-| Alias for a Node program.
 -}
 type alias Program =
-    Node.Program {} {}
+    Node.SimpleProgram {}
 
 
 {-| Alias for the main `Task` type we'll be working with here.
@@ -235,16 +235,11 @@ perform errorHandling taskCreator =
                     permission
                         |> taskCreator
                         |> Task.andThen (\result ->
-                            result
-                                |> errorHandling.onSuccess env
-                                |> Task.andThen (\_ -> Node.exit)
+                            errorHandling.onSuccess env result
                         )
                         |> Task.onError (\err ->
-                            err
-                                |> errorHandling.onError env
-                                |> Task.andThen (\_ -> Node.exit)
+                            errorHandling.onError env err
                         )
-                        |> Task.map (\_ -> {})
                         |> Task.onError (\_ -> Task.succeed {})
                         |> Node.endSimpleProgram
                 )
