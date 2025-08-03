@@ -1,6 +1,11 @@
+# Example
+
 Building and running the example:
+
 ```shell
-gren make src/Main.gren --output=./generate
-node generate
+gren make Main
+node app
 ```
-⚠️ `node generate` must be executed in this directory.
+
+> [!WARNING]
+> `node app` must be executed in this directory
